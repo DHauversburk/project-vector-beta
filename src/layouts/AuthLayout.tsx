@@ -1,10 +1,12 @@
 import { Outlet, Navigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { ShieldCheck } from 'lucide-react';
+import { ModeToggle } from '../components/ModeToggle';
 
 export default function AuthLayout() {
     const { session, loading } = useAuth();
 
+    // If loading session, show spinner
     if (loading) {
         return (
             <div className="flex h-screen w-full items-center justify-center bg-background">
@@ -13,12 +15,16 @@ export default function AuthLayout() {
         );
     }
 
+    // If already logged in, redirect to dashboard
     if (session) {
         return <Navigate to="/dashboard" replace />;
     }
 
     return (
-        <div className="flex min-h-screen flex-col items-center justify-center bg-muted/40 p-4">
+        <div className="relative flex min-h-screen flex-col items-center justify-center bg-muted/40 p-4 transition-colors duration-300">
+            <div className="absolute top-4 right-4">
+                <ModeToggle />
+            </div>
             <div className="w-full max-w-sm space-y-6">
                 <div className="flex flex-col items-center space-y-2 text-center">
                     <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-primary text-primary-foreground">

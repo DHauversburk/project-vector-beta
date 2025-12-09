@@ -55,8 +55,8 @@ export const api = {
     // Providers (for members to select)
     getProviders: async () => {
         const { data, error } = await supabase
-            .from('profiles')
-            .select('id, full_name, role') // Note: full_name might be restricted by policy, but assuming public for providers
+            .from('users') // Changed from 'profiles'
+            .select('id, token_alias, role, service_type')
             .eq('role', 'provider');
 
         if (error) throw error;

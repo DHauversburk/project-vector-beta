@@ -10,6 +10,7 @@ type AuthContextType = {
     role: UserRole;
     loading: boolean;
     signOut: () => Promise<void>;
+    supabase: typeof supabase;
 };
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -23,15 +24,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const fetchProfile = async (userId: string) => {
         try {
             const { data, error } = await supabase
-                .from('profiles')
+                .from('users')
                 .select('role')
                 .eq('id', userId)
                 .single();
 
             if (error) {
                 console.error('Error fetching profile:', error);
-                // Default to member if error or not found (safety)
-                // In reality, might want to redirect to an "onboarding" page if no profile exists
                 setRole('member');
             } else if (data) {
                 setRole(data.role as UserRole);
@@ -82,6 +81,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         role,
         loading,
         signOut,
+        supabase,
     };
 
     return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
