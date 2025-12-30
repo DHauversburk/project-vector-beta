@@ -127,23 +127,123 @@ export const api = {
         if (IS_MOCK) {
             api.mockStore.load(); // Ensure we have latest data
 
-            // Lazy initialization of mock data for 'Jameson' scenario
             if (!api.mockStore.init) {
-                // Determine user alias for context
+                // SEEDING: Generate rich mock data if store is empty
+                console.log('[MOCK] Seeding initial dataset...');
 
+                const seedAppointments: Appointment[] = [];
+                const now = new Date();
+                const providerIds = [
+                    { id: 'mock-provider-jameson', alias: 'Dr. Jameson', service: 'MH_GREEN' },
+                    { id: 'mock-provider-smith', alias: 'Dr. Smith', service: 'PRIMARY_BLUE' },
+                    { id: 'mock-provider-taylor', alias: 'Dr. Taylor', service: 'PT_GOLD' }
+                ];
+                const patientIds = ['00000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000002', '00000000-0000-0000-0000-000000000003']; // Alpha, Bravo, Charlie (approx)
 
-                api.mockStore.appointments = [{
-                    id: 'mock-appt-existing',
-                    provider_id: 'mock-provider-jameson',
+                // 1. Generate History (Past 14 Days)
+                for (let i = 1; i <= 5; i++) {
+                    const pastDate = new Date(now);
+                    pastDate.setDate(now.getDate() - (i * 2));
+                    pastDate.setHours(10, 0, 0, 0);
+
+                    seedAppointments.push({
+                        id: `mock-appt-past-${i}`,
+                        provider_id: 'mock-provider-jameson',
+                        member_id: user.id, // Current user gets some history
+                        start_time: pastDate.toISOString(),
+                        end_time: new Date(pastDate.getTime() + 60 * 60 * 1000).toISOString(),
+                        status: 'completed',
+                        is_booked: true,
+                        created_at: pastDate.toISOString(),
+                        provider: { token_alias: 'Dr. Jameson', service_type: 'MH_GREEN' },
+                        notes: 'Routine check-up | Location: Clinical Node B-4'
+                    });
+                }
+
+                // 2. Generate Open Slots & Blocks (Next 7 Days)
+                for (let d = 0; d < 7; d++) {
+                    const day = new Date(now);
+                    day.setDate(now.getDate() + d);
+
+                    // Skip weekends for realism
+                    if (day.getDay() === 0 || day.getDay() === 6) continue;
+
+                    providerIds.forEach(p => {
+                        // 9 AM - 4 PM
+                        for (let h = 9; h <= 16; h++) {
+                            const slotStart = new Date(day);
+                            slotStart.setHours(h, 0, 0, 0);
+
+                            // LUNCH BLOCK (12 PM)
+                            if (h === 12) {
+                                seedAppointments.push({
+                                    id: `mock-block-${p.id}-${d}`,
+                                    provider_id: p.id,
+                                    member_id: null,
+                                    start_time: slotStart.toISOString(),
+                                    end_time: new Date(slotStart.getTime() + 60 * 60 * 1000).toISOString(),
+                                    status: 'blocked',
+                                    is_booked: true,
+                                    created_at: now.toISOString(),
+                                    notes: 'Lunch Break',
+                                    provider: { token_alias: p.alias, service_type: p.service }
+                                });
+                                continue;
+                            }
+
+                            // 20% Chance of being already booked by "another patient"
+                            if (Math.random() < 0.2) {
+                                seedAppointments.push({
+                                    id: `mock-booked-${p.id}-${d}-${h}`,
+                                    provider_id: p.id,
+                                    member_id: 'other-random-id',
+                                    start_time: slotStart.toISOString(),
+                                    end_time: new Date(slotStart.getTime() + 60 * 60 * 1000).toISOString(),
+                                    status: 'confirmed',
+                                    is_booked: true,
+                                    created_at: now.toISOString(),
+                                    provider: { token_alias: p.alias, service_type: p.service }
+                                });
+                                continue;
+                            }
+
+                            // Otherwise, OPEN SLOT
+                            seedAppointments.push({
+                                id: `mock-gen-${p.id}-${d}-${h}`,
+                                provider_id: p.id,
+                                member_id: null,
+                                start_time: slotStart.toISOString(),
+                                end_time: new Date(slotStart.getTime() + 60 * 60 * 1000).toISOString(),
+                                status: 'pending',
+                                is_booked: false,
+                                created_at: now.toISOString(),
+                                provider: { token_alias: p.alias, service_type: p.service }
+                            });
+                        }
+                    });
+                }
+
+                // 3. Add one upcoming appointment for current user
+                const futureDate = new Date(now);
+                futureDate.setDate(now.getDate() + 2);
+                futureDate.setHours(14, 0, 0, 0);
+
+                seedAppointments.push({
+                    id: `mock-appt-future-user`,
+                    provider_id: 'mock-provider-taylor',
                     member_id: user.id,
-                    start_time: new Date(new Date().setDate(new Date().getDate() + 2)).toISOString(),
-                    end_time: new Date(new Date().setDate(new Date().getDate() + 2)).toISOString(),
+                    start_time: futureDate.toISOString(),
+                    end_time: new Date(futureDate.getTime() + 60 * 60 * 1000).toISOString(),
                     status: 'confirmed',
                     is_booked: true,
-                    created_at: new Date().toISOString(),
-                    provider: { token_alias: 'Dr. Jameson', service_type: 'MH_GREEN' }
-                }];
+                    created_at: now.toISOString(),
+                    notes: 'Physical Therapy Assessment | Location: Gym B',
+                    provider: { token_alias: 'Dr. Taylor', service_type: 'PT_GOLD' }
+                });
+
+                api.mockStore.appointments = seedAppointments;
                 api.mockStore.init = true;
+                api.mockStore.save();
             }
 
             // FILTER: Only return appointments for this member
