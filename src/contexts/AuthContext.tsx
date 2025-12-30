@@ -9,6 +9,8 @@ type AuthContextType = {
     user: User | null;
     role: UserRole;
     loading: boolean;
+    pinVerified: boolean;
+    verifyPin: () => void;
     signOut: () => Promise<void>;
     supabase: typeof supabase;
 };
@@ -20,47 +22,87 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const [user, setUser] = useState<User | null>(null);
     const [role, setRole] = useState<UserRole>(null);
     const [loading, setLoading] = useState(true);
+    const [pinVerified, setPinVerified] = useState(() => {
+        try {
+            return sessionStorage.getItem('vector_pin_verified') === 'true';
+        } catch {
+            return false;
+        }
+    });
 
-    const fetchProfile = async (userId: string) => {
+    const verifyPin = () => {
+        setPinVerified(true);
+        sessionStorage.setItem('vector_pin_verified', 'true');
+    };
+
+    const fetchProfile = async (userId: string, currentUser: User) => {
+        console.log('[AuthContext] Fetching profile for userId:', userId);
         try {
             const { data, error } = await supabase
                 .from('users')
-                .select('role')
+                .select('role, token_alias, service_type')
                 .eq('id', userId)
                 .single();
 
+            console.log('[AuthContext] Profile query result:', { data, error });
+
             if (error) {
-                console.error('Error fetching profile:', error);
+                console.error('[AuthContext] Error fetching profile:', error);
                 setRole('member');
             } else if (data) {
+                console.log('[AuthContext] Setting role to:', data.role);
                 setRole(data.role as UserRole);
+                // Enrich user object with profile data
+                if (currentUser) {
+                    currentUser.user_metadata = {
+                        ...currentUser.user_metadata,
+                        token_alias: data.token_alias,
+                        service_type: data.service_type,
+                        role: data.role
+                    };
+                    setUser({ ...currentUser });
+                    console.log('[AuthContext] User metadata updated:', currentUser.user_metadata);
+                }
+            } else {
+                console.log('[AuthContext] No data returned, defaulting to member');
+                setRole('member');
             }
         } catch (err) {
-            console.error('Unexpected error fetching profile:', err);
+            console.error('[AuthContext] Unexpected error fetching profile:', err);
             setRole('member');
         }
     };
 
     useEffect(() => {
         // Get initial session
-        supabase.auth.getSession().then(({ data: { session } }) => {
+        supabase.auth.getSession().then(({ data: { session } }: { data: { session: Session | null } }) => {
             setSession(session);
             setUser(session?.user ?? null);
             if (session?.user) {
-                fetchProfile(session.user.id);
+                fetchProfile(session.user.id, session.user).then(() => {
+                    // CRITICAL: Ensure loading is disabled after profile fetch
+                    setLoading(false);
+                });
             } else {
                 setLoading(false);
             }
+        }).catch((err: any) => {
+            console.error("Auth Session Error:", err);
+            // SAFETY VALVE: Ensure we never get stuck on "Authenticating..."
+            setLoading(false);
         });
 
         // Listen for changes
         const {
             data: { subscription },
-        } = supabase.auth.onAuthStateChange((_event, session) => {
+        } = supabase.auth.onAuthStateChange((_event: string, session: Session | null) => {
             setSession(session);
             setUser(session?.user ?? null);
             if (session?.user) {
-                fetchProfile(session.user.id).then(() => setLoading(false));
+                fetchProfile(session.user.id, session.user).then(() => {
+                    // Slight delay to smoother transition in mock
+                    setTimeout(() => setLoading(false), 300);
+                });
             } else {
                 setRole(null);
                 setLoading(false);
@@ -72,6 +114,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     const signOut = async () => {
         await supabase.auth.signOut();
+        sessionStorage.removeItem('vector_pin_verified');
+        setPinVerified(false);
         setRole(null);
     };
 
@@ -80,6 +124,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         user,
         role,
         loading,
+        pinVerified,
+        verifyPin,
         signOut,
         supabase,
     };

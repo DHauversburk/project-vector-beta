@@ -16,9 +16,10 @@ export default function AuthLayout() {
     }
 
     // If already logged in, redirect to dashboard
-    if (session) {
-        return <Navigate to="/dashboard" replace />;
-    }
+    // REMOVED: Managed by LoginPage to enforce PIN flow
+    // if (session) {
+    //    return <Navigate to="/dashboard" replace />;
+    // }
 
     return (
         <div className="relative flex min-h-screen flex-col items-center justify-center bg-muted/40 p-4 transition-colors duration-300">

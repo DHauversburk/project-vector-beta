@@ -1,7 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import * as dotenv from 'dotenv';
-import { createClient } from '@supabase/supabase-js';
-import * as dotenv from 'dotenv';
+
 import { resolve } from 'path';
 
 // Load env from current working directory
@@ -48,15 +47,17 @@ async function seed() {
             console.log(`Note for ${u.email}: ${userError.message}`);
             // If already exists, we need to fetch ID
             if (userError.message.includes('already registered') || userError.message.includes('unique constraint')) {
-                // Admin get user by email is only possible if we list users or maybe just proceed
-                // We can't easily "get" user by email via admin API without listing all... 
-                // BUT we can use the Service Key to just query the profile if it exists, OR try to Query auth.users via Rpc? No.
-                // Simplest: Just try to upsert the profile. If the user exists in Auth, they have an ID.
-                // We can't get the ID easily if we can't login or search. 
-                // Let's try to list users by email?
-                const { data: listData } = await supabase.auth.admin.listUsers();
-                const found = listData.users.find(x => x.email === u.email);
-                if (found) userId = found.id;
+                // List all users and find by email
+                const { data: listData, error: listError } = await supabase.auth.admin.listUsers();
+                if (listError) {
+                    console.error(`Error listing users: ${listError.message}`);
+                } else if (listData && listData.users) {
+                    const found = listData.users.find(x => x.email === u.email);
+                    if (found) {
+                        userId = found.id;
+                        console.log(`Found existing user: ${userId}`);
+                    }
+                }
             }
         } else {
             userId = userData.user.id;
