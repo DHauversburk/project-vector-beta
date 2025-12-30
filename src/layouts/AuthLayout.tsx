@@ -1,10 +1,10 @@
-import { Outlet, Navigate } from 'react-router-dom';
+import { Outlet } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { ShieldCheck } from 'lucide-react';
 import { ModeToggle } from '../components/ModeToggle';
 
 export default function AuthLayout() {
-    const { session, loading } = useAuth();
+    const { loading } = useAuth();
 
     // If loading session, show spinner
     if (loading) {

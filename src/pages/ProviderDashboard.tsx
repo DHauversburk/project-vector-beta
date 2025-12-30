@@ -1,10 +1,9 @@
 import { useEffect, useState } from 'react';
 import { api } from '../lib/api';
-import { supabase } from '../lib/supabase';
 import TokenGenerator from '../components/admin/TokenGenerator';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
-import { Loader2, CalendarRange, Users, RefreshCw, Zap, BarChart3, Check, ShieldAlert, Moon, Sun, Shield, Activity, LogOut, Calendar, Clock, ChevronDown, LayoutGrid } from 'lucide-react';
+import { CalendarRange, Users, BarChart3, ShieldAlert, Moon, Sun, Shield, Activity, LogOut, Calendar, LayoutGrid } from 'lucide-react';
 import { useTheme } from '../contexts/ThemeContext';
 import { useAuth } from '../contexts/AuthContext';
 import { addDays } from 'date-fns';
@@ -26,7 +25,7 @@ type Member = {
 
 export default function ProviderDashboard() {
     const { theme, setTheme } = useTheme();
-    const { user, role, signOut } = useAuth();
+    const { signOut } = useAuth();
     const [view, setView] = useState<'overview' | 'schedule' | 'tokens' | 'resources' | 'analytics' | 'security'>('overview');
     const [loading, setLoading] = useState(true);
     const [genLoading, setGenLoading] = useState(false);
@@ -40,12 +39,12 @@ export default function ProviderDashboard() {
     const [endTime, setEndTime] = useState('17:00');
     const [blockStartTime, setBlockStartTime] = useState('12:00');
     const [blockEndTime, setBlockEndTime] = useState('13:00');
-    const [duration, setDuration] = useState(45);
-    const [breakTime, setBreakTime] = useState(15);
-    const [days, setDays] = useState<number[]>([1, 2, 3, 4, 5]);
+    const [duration] = useState(45);
+    const [breakTime] = useState(15);
+    const [days] = useState<number[]>([1, 2, 3, 4, 5]);
     const [isBlockMode, setIsBlockMode] = useState(false);
     const [blockReason, setBlockReason] = useState('');
-    const [customLocation, setCustomLocation] = useState('');
+    const [customLocation] = useState('');
 
     // Clear Schedule State
     const [clearOpen, setClearOpen] = useState(false);
@@ -55,37 +54,20 @@ export default function ProviderDashboard() {
 
     // Token Manager State
     const [members, setMembers] = useState<Member[]>([]);
-    const [memberSearch, setMemberSearch] = useState('');
-    const [memberLoading, setMemberLoading] = useState(false);
+    const [memberSearch] = useState('');
     const [editingMember, setEditingMember] = useState<Member | null>(null);
-    const [bookingMember, setBookingMember] = useState<Member | null>(null);
-    const [openSlots, setOpenSlots] = useState<any[]>([]);
-    const [bookingLoading, setBookingLoading] = useState(false);
     const [newAlias, setNewAlias] = useState('');
 
-    // Sort and Filter State
-    const [filterStatus, setFilterStatus] = useState<'all' | 'active' | 'disabled'>('all');
-    const [sortBy, setSortBy] = useState<'created_desc' | 'created_asc' | 'appts_desc'>('created_desc');
 
-    // Schedule Template State
-    const [templateName, setTemplateName] = useState('');
-    const [savedTemplates, setSavedTemplates] = useState<any[]>([]);
-    const [showTemplates, setShowTemplates] = useState(false);
 
-    useEffect(() => {
-        const stored = localStorage.getItem('SCHEDULE_TEMPLATES');
-        if (stored) setSavedTemplates(JSON.parse(stored));
-    }, []);
+
 
     const loadMembers = async () => {
-        setMemberLoading(true);
         try {
             const data = await api.getMembers(memberSearch);
             setMembers(data as Member[]);
         } catch (error) {
             console.error(error);
-        } finally {
-            setMemberLoading(false);
         }
     };
 
@@ -168,52 +150,11 @@ export default function ProviderDashboard() {
         } catch (error) { console.error(error); }
     };
 
-    const handleDirectBook = async (member: Member) => {
-        setBookingMember(member);
-        const { data: { user } } = await supabase.auth.getUser();
-        if (user) {
-            const slots = await api.getProviderOpenSlots(user.id);
-            setOpenSlots(slots);
-        }
-    };
 
-    const confirmBooking = async (slotId: string) => {
-        if (!bookingMember) return;
-        setBookingLoading(true);
-        try {
-            await supabase.from('appointments').update({ member_id: bookingMember.id, is_booked: true, status: 'confirmed' }).eq('id', slotId);
-            setBookingMember(null);
-            window.location.reload();
-        } catch (error) { console.error(error); } finally { setBookingLoading(false); }
-    };
 
-    const dayLabels = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
-    const saveTemplate = () => {
-        if (!templateName.trim()) return;
-        const template = { id: Date.now().toString(), name: templateName, startTime, endTime, duration, breakTime, days, createdAt: new Date().toISOString() };
-        const updated = [...savedTemplates, template];
-        setSavedTemplates(updated);
-        localStorage.setItem('SCHEDULE_TEMPLATES', JSON.stringify(updated));
-        setTemplateName('');
-        setShowTemplates(false);
-    };
 
-    const loadTemplate = (template: any) => {
-        setStartTime(template.startTime);
-        setEndTime(template.endTime);
-        setDuration(template.duration);
-        setBreakTime(template.breakTime);
-        setDays(template.days);
-        setShowTemplates(false);
-    };
 
-    const deleteTemplate = (id: string) => {
-        if (!confirm('Delete template?')) return;
-        const updated = savedTemplates.filter(t => t.id !== id);
-        setSavedTemplates(updated);
-        localStorage.setItem('SCHEDULE_TEMPLATES', JSON.stringify(updated));
-    };
 
     if (loading) return <div>Loading...</div>;
 
