@@ -10,7 +10,9 @@ import {
     Sun,
     Moon,
     ChevronDown,
-    Lock
+    Lock,
+    Menu,
+    X
 } from 'lucide-react';
 import { Button } from '../components/ui/Button';
 import TokenGenerator from '../components/admin/TokenGenerator';
@@ -28,6 +30,7 @@ export default function AdminDashboard() {
     const [actionContext, setActionContext] = useState<ActionContext>('view');
     const [currentView, setCurrentView] = useState<DashboardView>('schedule');
     const [isContextOpen, setIsContextOpen] = useState(false);
+    const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
     return (
         <div className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 font-sans selection:bg-indigo-100 pb-12 transition-colors">
@@ -101,11 +104,30 @@ export default function AdminDashboard() {
 
                     <div className="h-6 w-px bg-slate-200 dark:bg-slate-700 mx-2" />
 
-                    <Button onClick={signOut} variant="ghost" size="sm" className="text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white font-bold text-xs uppercase tracking-wider hover:bg-slate-100 dark:hover:bg-slate-800">
+                    <Button onClick={signOut} variant="ghost" size="sm" className="hidden md:flex text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white font-bold text-xs uppercase tracking-wider hover:bg-slate-100 dark:hover:bg-slate-800">
                         <LogOut className="w-3.5 h-3.5 mr-2" />
                         <span className="hidden sm:inline">Logout</span>
                     </Button>
+
+                    {/* Mobile Menu Toggle */}
+                    <div className="flex md:hidden items-center gap-2">
+                        <button onClick={() => setMobileMenuOpen(!mobileMenuOpen)} className="p-2 text-slate-900 dark:text-white">
+                            {mobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
+                        </button>
+                    </div>
                 </div>
+
+                {/* Mobile Menu Overlay */}
+                {mobileMenuOpen && (
+                    <div className="absolute top-14 left-0 w-full bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 shadow-xl md:hidden flex flex-col p-4 gap-2 animate-in slide-in-from-top-2 z-50">
+                        <Button variant={currentView === 'schedule' ? 'secondary' : 'ghost'} size="sm" onClick={() => { setCurrentView('schedule'); setMobileMenuOpen(false); }} className="justify-start h-10 text-xs font-black uppercase tracking-wider"> <Grid className="w-4 h-4 mr-3" /> Master Schedule </Button>
+                        <Button variant={currentView === 'tokens' ? 'secondary' : 'ghost'} size="sm" onClick={() => { setCurrentView('tokens'); setMobileMenuOpen(false); }} className="justify-start h-10 text-xs font-black uppercase tracking-wider"> <FileText className="w-4 h-4 mr-3" /> Token Station </Button>
+                        <Button variant={currentView === 'logs' ? 'secondary' : 'ghost'} size="sm" onClick={() => { setCurrentView('logs'); setMobileMenuOpen(false); }} className="justify-start h-10 text-xs font-black uppercase tracking-wider"> <AlertCircle className="w-4 h-4 mr-3" /> Audit Logs </Button>
+                        <Button variant={currentView === 'maintenance' ? 'secondary' : 'ghost'} size="sm" onClick={() => { setCurrentView('maintenance'); setMobileMenuOpen(false); }} className="justify-start h-10 text-xs font-black uppercase tracking-wider"> <Database className="w-4 h-4 mr-3" /> System Hygiene </Button>
+                        <div className="h-px bg-slate-100 dark:bg-slate-800 my-1" />
+                        <Button variant="ghost" size="sm" onClick={signOut} className="justify-start h-10 text-xs font-black uppercase tracking-wider text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-900/20"> <LogOut className="w-4 h-4 mr-3" /> Logout </Button>
+                    </div>
+                )}
             </header>
 
             {/* Dashboard Content Grid */}
