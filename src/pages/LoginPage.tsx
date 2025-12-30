@@ -412,6 +412,20 @@ export default function LoginPage() {
                     >
                         {IS_MOCK ? '⚠️ BETA PREVIEW: SIMULATION MODE ACTIVE' : '● LIVE SYSTEM CONNECTED'}
                     </div>
+
+                    {IS_MOCK && (
+                        <button
+                            onClick={() => {
+                                if (confirm('Reset all demo data? This will clear appointments and reload clean mock data.')) {
+                                    api.mockStore.reset();
+                                    window.location.reload();
+                                }
+                            }}
+                            className="text-[8px] font-black uppercase tracking-widest text-slate-400 hover:text-red-500 transition-colors border-b border-transparent hover:border-red-500 pb-0.5"
+                        >
+                            Reset Demo Data
+                        </button>
+                    )}
                 </div>
             </div>
         </div>
