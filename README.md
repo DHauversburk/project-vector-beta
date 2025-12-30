@@ -1,73 +1,78 @@
-# React + TypeScript + Vite
+# Project Vector (Beta Preview v1.4.2)
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+> **Secure, Anonymous Medical Scheduling System**  
+> *Designed for high-compliance environments requiring Zero-Trust architecture.*
 
-Currently, two official plugins are available:
+![Status](https://img.shields.io/badge/Status-Beta_Simulation-amber) ![Security](https://img.shields.io/badge/Security-Zero_Trust-blue) ![Compliance](https://img.shields.io/badge/Compliance-FIPS_140-green)
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+## ⚠️ Beta Simulation Mode
+This repository is currently configured for **Offline Simulation**. It demonstrates the full UI/UX and scheduling logic without connecting to a live database. All data is stored locally in your browser and resets when you clear your cache (or use the "Factory Reset" button in Security Settings).
 
-## React Compiler
+**No API Keys Required.** You can clone and run this project immediately.
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+---
 
-## Expanding the ESLint configuration
+## 🚀 Quick Start (Run Locally)
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+```bash
+# 1. Clone the repository
+git clone https://github.com/YOUR_USERNAME/project-vector-beta.git
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
+# 2. Enter directory
+cd project-vector-beta
 
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
+# 3. Install dependencies
+npm install
 
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+# 4. Start the simulation server
+npm run dev
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+Open [http://localhost:5173](http://localhost:5173) in your browser.
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+---
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-```
+## 🔑 Test Credentials (Mock Mode)
+
+Use these credentials to test different user roles in the simulation.
+
+### 1. Patient Access (Token Mode)
+*Select "Secure Token" on the login screen.*
+*PIN for all patients:* `1111`
+
+| Token | Identity |
+| :--- | :--- |
+| `M-8821-X4` | **Patient Alpha** (General) |
+| `M-3392-L9` | **Patient Bravo** (Follow-up) |
+| `M-1102-P2` | **Patient Charlie** (New Intake) |
+
+### 2. Provider Access (Email Mode)
+*Select "Email Login" on the login screen.*
+*Password for all:* `password`
+
+| Email | Role |
+| :--- | :--- |
+| `doc.mh@vector.mil` | **Mental Health (Green Team)** |
+| `doc.pt@vector.mil` | **Physical Therapy (Gold Team)** |
+| `doc.om@vector.mil` | **Operational Medicine** |
+
+### 3. Admin Access (Email Mode)
+- **Email:** `alex.admin@vector.mil`
+- **Password:** `password`
+- *Role: System Administrator (Super User)*
+
+---
+
+## 🛠️ Technology Stack
+- **Frontend:** React 19 + TypeScript + Vite
+- **Styling:** Tailwind CSS (Slate/Zinc Palette)
+- **State Management:** LocalStorage Persistence (Mock Adapter)
+- **Icons:** Lucide React
+- **PWA:** Workbox (Offline Capabilities)
+
+## 📦 Deployment
+This project is optimized for deployment on Vercel or Netlify.
+**Important:** Do NOT add Supabase environment variables for the Beta deployment. Leaving them empty ensures the application stays in "Simulation Mode".
+
+## 📄 License
+Internal / Confidential / Beta Preview

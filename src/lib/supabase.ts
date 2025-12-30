@@ -71,6 +71,12 @@ const mockSupabase = {
                 } else if (email.includes('mh')) {
                     userId = 'mock-provider-mh';
                     tokenAlias = 'DR. MH';
+                } else if (email.includes('pt')) {
+                    userId = 'mock-provider-pt';
+                    tokenAlias = 'DR. PT';
+                } else if (email.includes('om')) {
+                    userId = 'mock-provider-om';
+                    tokenAlias = 'DR. OM';
                 } else {
                     userId = 'mock-provider-jameson';
                     tokenAlias = 'DR. JAMESON';
@@ -158,11 +164,12 @@ const mockSupabase = {
                         // Mock Profile Fetch
                         if (table === 'users' && col === 'id') {
                             if (val === 'mock-admin-alex') return { data: { role: 'admin' }, error: null };
-                            if (val.includes('provider')) {
-                                let st = 'MH_GREEN'; // Default to Jameson
+                            if (val.includes('provider') || val.includes('jameson') || val.includes('smith') || val.includes('mh') || val.includes('pt') || val.includes('om')) { // Extended check
+                                let st = 'MH_GREEN'; // Default to Jameson/MH
                                 if (val.includes('mh')) st = 'MH_GREEN';
                                 else if (val.includes('smith') || val.includes('blue')) st = 'PRIMARY_BLUE';
                                 else if (val.includes('taylor') || val.includes('pt')) st = 'PT_GOLD';
+                                else if (val.includes('om')) st = 'PRIMARY'; // Operational Medicine -> Primary
                                 return { data: { role: 'provider', service_type: st }, error: null };
                             }
                             return { data: { role: 'member' }, error: null };
