@@ -421,7 +421,7 @@ export default function LoginPage() {
                                     window.location.reload();
                                 }
                             }}
-                            className="text-[8px] font-black uppercase tracking-widest text-slate-400 hover:text-red-500 transition-colors border-b border-transparent hover:border-red-500 pb-0.5"
+                            className="mt-2 px-3 py-1.5 border border-red-200 dark:border-red-900/50 rounded text-[9px] font-black uppercase tracking-widest text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 active:scale-95 transition-all w-full md:w-auto"
                         >
                             Reset Demo Data
                         </button>

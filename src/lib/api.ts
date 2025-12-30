@@ -138,7 +138,6 @@ export const api = {
                     { id: 'mock-provider-smith', alias: 'Dr. Smith', service: 'PRIMARY_BLUE' },
                     { id: 'mock-provider-taylor', alias: 'Dr. Taylor', service: 'PT_GOLD' }
                 ];
-                const patientIds = ['00000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000002', '00000000-0000-0000-0000-000000000003']; // Alpha, Bravo, Charlie (approx)
 
                 // 1. Generate History (Past 14 Days)
                 for (let i = 1; i <= 5; i++) {
