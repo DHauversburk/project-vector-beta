@@ -3,7 +3,7 @@ import { api } from '../lib/api';
 import TokenGenerator from '../components/admin/TokenGenerator';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
-import { CalendarRange, Users, BarChart3, ShieldAlert, Moon, Sun, Shield, Activity, LogOut, Calendar, LayoutGrid } from 'lucide-react';
+import { CalendarRange, Users, BarChart3, ShieldAlert, Moon, Sun, Shield, Activity, LogOut, Calendar, LayoutGrid, Menu, X } from 'lucide-react';
 import { useTheme } from '../contexts/ThemeContext';
 import { useAuth } from '../contexts/AuthContext';
 import { addDays } from 'date-fns';
@@ -27,6 +27,7 @@ export default function ProviderDashboard() {
     const { theme, setTheme } = useTheme();
     const { signOut } = useAuth();
     const [view, setView] = useState<'overview' | 'schedule' | 'tokens' | 'resources' | 'analytics' | 'security'>('overview');
+    const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
     const [loading, setLoading] = useState(true);
     const [genLoading, setGenLoading] = useState(false);
     const [scheduleKey, setScheduleKey] = useState(0);
@@ -161,7 +162,7 @@ export default function ProviderDashboard() {
     return (
         <div className="min-h-screen w-full bg-slate-50 dark:bg-slate-950 font-sans selection:bg-indigo-100 transition-colors flex flex-col">
             {/* Header */}
-            <div className="bg-white dark:bg-slate-900 border-b border-slate-300 dark:border-slate-800 sticky top-0 z-40 shadow-sm transition-colors flex-shrink-0">
+            <div className="bg-white dark:bg-slate-900 border-b border-slate-300 dark:border-slate-800 sticky top-0 z-50 shadow-sm transition-colors flex-shrink-0">
                 <div className="max-w-7xl mx-auto px-4 h-14 flex items-center justify-between">
                     <div className="flex items-center gap-4">
                         <Activity className="w-8 h-8 text-indigo-600 p-1.5 bg-indigo-50 dark:bg-indigo-900/30 rounded" />
@@ -170,9 +171,11 @@ export default function ProviderDashboard() {
                             <p className="text-[10px] font-bold text-slate-500 uppercase mt-0.5">Clinical Care Unit</p>
                         </div>
                     </div>
-                    <div className="flex items-center gap-4">
+
+                    {/* Desktop Navigation */}
+                    <div className="hidden md:flex items-center gap-4">
                         <div className="flex items-center gap-3">
-                            <div className="flex bg-slate-100 dark:bg-slate-900 rounded-lg p-1.5 gap-1 overflow-x-auto sm:overflow-visible">
+                            <div className="flex bg-slate-100 dark:bg-slate-900 rounded-lg p-1.5 gap-1">
                                 <Button variant={view === 'overview' ? 'secondary' : 'ghost'} size="sm" onClick={() => setView('overview')} className={cn("text-xs font-black uppercase tracking-wider", view === 'overview' && "bg-white dark:bg-slate-800 shadow-sm")}> <LayoutGrid className="w-3.5 h-3.5 mr-2" /> Dashboard </Button>
                                 <Button variant={view === 'schedule' ? 'secondary' : 'ghost'} size="sm" onClick={() => setView('schedule')} className={cn("text-xs font-black uppercase tracking-wider", view === 'schedule' && "bg-white dark:bg-slate-800 shadow-sm")}> <CalendarRange className="w-3.5 h-3.5 mr-2" /> Schedule </Button>
                                 <Button variant={view === 'tokens' ? 'secondary' : 'ghost'} size="sm" onClick={() => setView('tokens')} className={cn("text-xs font-black uppercase tracking-wider", view === 'tokens' && "bg-white dark:bg-slate-800 shadow-sm")}> <Users className="w-3.5 h-3.5 mr-2" /> Patients </Button>
@@ -184,7 +187,29 @@ export default function ProviderDashboard() {
                             <button onClick={signOut} className="p-2 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors border border-slate-300 dark:border-slate-700"> <LogOut className="w-4 h-4" /> </button>
                         </div>
                     </div>
+
+                    {/* Mobile Menu Toggle */}
+                    <div className="flex md:hidden items-center gap-2">
+                        <button onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')} className="p-2 text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors border border-slate-300 dark:border-slate-700"> {theme === 'dark' ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />} </button>
+                        <button onClick={() => setMobileMenuOpen(!mobileMenuOpen)} className="p-2 text-slate-900 dark:text-white">
+                            {mobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
+                        </button>
+                    </div>
                 </div>
+
+                {/* Mobile Menu Overlay */}
+                {mobileMenuOpen && (
+                    <div className="absolute top-14 left-0 w-full bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 shadow-xl md:hidden flex flex-col p-4 gap-2 animate-in slide-in-from-top-2">
+                        <Button variant={view === 'overview' ? 'secondary' : 'ghost'} size="sm" onClick={() => { setView('overview'); setMobileMenuOpen(false); }} className="justify-start h-10 text-xs font-black uppercase tracking-wider"> <LayoutGrid className="w-4 h-4 mr-3" /> Dashboard </Button>
+                        <Button variant={view === 'schedule' ? 'secondary' : 'ghost'} size="sm" onClick={() => { setView('schedule'); setMobileMenuOpen(false); }} className="justify-start h-10 text-xs font-black uppercase tracking-wider"> <CalendarRange className="w-4 h-4 mr-3" /> Schedule </Button>
+                        <Button variant={view === 'tokens' ? 'secondary' : 'ghost'} size="sm" onClick={() => { setView('tokens'); setMobileMenuOpen(false); }} className="justify-start h-10 text-xs font-black uppercase tracking-wider"> <Users className="w-4 h-4 mr-3" /> Patients </Button>
+                        <Button variant={view === 'analytics' ? 'secondary' : 'ghost'} size="sm" onClick={() => { setView('analytics'); setMobileMenuOpen(false); }} className="justify-start h-10 text-xs font-black uppercase tracking-wider"> <BarChart3 className="w-4 h-4 mr-3" /> Analytics </Button>
+                        <Button variant={view === 'resources' ? 'secondary' : 'ghost'} size="sm" onClick={() => { setView('resources'); setMobileMenuOpen(false); }} className="justify-start h-10 text-xs font-black uppercase tracking-wider"> <Calendar className="w-4 h-4 mr-3" /> Resources </Button>
+                        <Button variant={view === 'security' ? 'secondary' : 'ghost'} size="sm" onClick={() => { setView('security'); setMobileMenuOpen(false); }} className="justify-start h-10 text-xs font-black uppercase tracking-wider"> <Shield className="w-4 h-4 mr-3" /> Security </Button>
+                        <div className="h-px bg-slate-100 dark:bg-slate-800 my-1" />
+                        <Button variant="ghost" size="sm" onClick={signOut} className="justify-start h-10 text-xs font-black uppercase tracking-wider text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-900/20"> <LogOut className="w-4 h-4 mr-3" /> Sign Out </Button>
+                    </div>
+                )}
             </div>
 
             {/* Content Area */}
