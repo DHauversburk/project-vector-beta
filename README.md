@@ -56,10 +56,6 @@ Use these credentials to test different user roles in the simulation.
 | `doc.pt@vector.mil` | **Physical Therapy (Gold Team)** |
 | `doc.om@vector.mil` | **Operational Medicine** |
 
-### 3. Admin Access (Email Mode)
-- **Email:** `alex.admin@vector.mil`
-- **Password:** `password`
-- *Role: System Administrator (Super User)*
 
 ---
 
