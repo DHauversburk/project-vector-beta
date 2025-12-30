@@ -686,50 +686,29 @@ export const api = {
      * MOCK: Generates 4 static slots for 'tomorrow', filtering out any that are in mockStore.
      */
     getProviderOpenSlots: async (providerId: string, startDate?: string) => {
-        // [MOCK MODE] - Only generate mock slots when in mock mode
+        // [MOCK MODE] - Query the seeded Mock Store directly (Database Behavior)
         if (IS_MOCK) {
-            api.mockStore.load(); // Ensure data is loaded to detect conflicts
-            // Determine base date: if startDate provided, use it, else tomorrow
-            const baseDate = startDate ? new Date(startDate) : new Date(new Date().setDate(new Date().getDate() + 1));
-            baseDate.setHours(9, 0, 0, 0);
+            api.mockStore.load(); // Ensure data is loaded
 
-            const slots = [];
-            for (let i = 0; i < 4; i++) {
-                const t = new Date(baseDate);
-                t.setHours(9 + i);
+            // Determine start boundary
+            const minTime = startDate ? new Date(startDate).getTime() : Date.now();
 
-                // Filter out conflict with mockStore
-                const isBookedInMock = api.mockStore?.appointments.some(a => {
-                    if (a.provider_id !== providerId) return false;
-                    const aStart = new Date(a.start_time).getTime();
-                    const aEnd = new Date(a.end_time).getTime();
-                    const tStart = t.getTime();
-                    const tEnd = t.getTime() + 60 * 60 * 1000;
+            // Filter for OPEN slots (pending, no member) for this provider
+            const openSlots = api.mockStore.appointments.filter(a => {
+                const t = new Date(a.start_time).getTime();
+                return (
+                    a.provider_id === providerId &&
+                    a.status === 'pending' &&
+                    a.member_id === null &&
+                    t >= minTime
+                );
+            });
 
-                    // Check for overlap: (StartA < EndB) and (EndA > StartB)
-                    const isOverlapping = aStart < tEnd && aEnd > tStart;
+            // Sort by time
+            openSlots.sort((a, b) => new Date(a.start_time).getTime() - new Date(b.start_time).getTime());
 
-                    // If conflicting appointment is active (not cancelled), suppress this virtual slot
-                    return isOverlapping && (a.status === 'confirmed' || a.status === 'blocked' || a.status === 'completed');
-                });
-
-                if (!isBookedInMock) {
-                    // [RULE] T-30 Minutes: Slots must be at least 30 mins in the future
-                    if (t.getTime() > Date.now() + 30 * 60000) {
-                        slots.push({
-                            id: `mock-slot-${providerId}-${i}`, // Encode Provider ID for multi-provider support
-                            provider_id: providerId,
-                            member_id: null,
-                            start_time: t.toISOString(),
-                            end_time: new Date(t.getTime() + 60 * 60 * 1000).toISOString(),
-                            status: 'pending',
-                            is_booked: false,
-                            created_at: new Date().toISOString()
-                        });
-                    }
-                }
-            }
-            return slots as Appointment[];
+            // Limit to reasonable number to prevent UI overload if infinite scroll isn't ready
+            return openSlots.slice(0, 50);
         }
 
         // REAL MODE - Query Supabase
