@@ -215,6 +215,12 @@ export const api = {
                             // Specific User Appointments (Ensure user has some future stuff)
                             // Assign ~1 slot every 14 days to the current user
                             if (d % 14 === 0 && h === 9 && p.id === 'mock-provider-jameson') {
+                                const reasons = [
+                                    'Provider Referral: Bi-Weekly Therapy',
+                                    'Follow-up: Treatment Plan Review',
+                                    'Routine: Mental Health Check-in'
+                                ];
+
                                 seedAppointments.push({
                                     id: `mock-user-recurring-${d}`,
                                     provider_id: p.id,
@@ -224,7 +230,7 @@ export const api = {
                                     status: 'confirmed',
                                     is_booked: true,
                                     created_at: now.toISOString(),
-                                    notes: 'Recurring Therapy Session',
+                                    notes: reasons[d % reasons.length], // Cycle through reasons
                                     provider: { token_alias: p.alias, service_type: p.service }
                                 });
                                 return;

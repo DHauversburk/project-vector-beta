@@ -744,7 +744,7 @@ export default function MemberDashboard() {
                                                     <div className="space-y-1">
                                                         <div className="flex items-center gap-3">
                                                             <h4 className={`text-sm font-black tracking-tight uppercase ${apt.status === 'cancelled' ? 'text-slate-400 line-through' : 'text-slate-900 dark:text-white'}`}>
-                                                                {format(parseISO(apt.start_time), 'HH:mm')}
+                                                                {format(parseISO(apt.start_time), 'MMM d')} • {format(parseISO(apt.start_time), 'HH:mm')}
                                                             </h4>
                                                             {apt.status === 'cancelled' ? (
                                                                 <span className="bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 text-[8px] font-black uppercase px-2 py-1 rounded border border-red-200 dark:border-red-800">
