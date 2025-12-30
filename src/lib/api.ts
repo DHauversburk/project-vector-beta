@@ -159,24 +159,30 @@ export const api = {
                     });
                 }
 
-                // 2. Generate Open Slots & Blocks (Next 7 Days)
-                for (let d = 0; d < 7; d++) {
+                // 2. Generate Future Schedule (Next 90 Days)
+                for (let d = 0; d < 90; d++) {
                     const day = new Date(now);
                     day.setDate(now.getDate() + d);
 
-                    // Skip weekends for realism
+                    // Skip weekends
                     if (day.getDay() === 0 || day.getDay() === 6) continue;
 
                     providerIds.forEach(p => {
-                        // 9 AM - 4 PM
-                        for (let h = 9; h <= 16; h++) {
-                            const slotStart = new Date(day);
-                            slotStart.setHours(h, 0, 0, 0);
+                        // Generate slots from 07:30 to 16:00 approx
+                        // We'll simulate 8 slots per day
+                        const startHours = [7, 8, 9, 10, 11, 13, 14, 15, 16];
 
-                            // LUNCH BLOCK (12 PM)
-                            if (h === 12) {
+                        startHours.forEach(h => {
+                            const slotStart = new Date(day);
+                            slotStart.setHours(h, h === 7 ? 30 : 0, 0, 0); // 7:30, others :00
+
+                            // LUNCH BLOCK (12 PM - handled by skipping 12 in array, but lets add a specific block entry for visual sake if we want, or just leave empty. 
+                            // User asked for blocks as examples. Let's add random admin blocks.)
+
+                            // Random Block (Admin/Meeting) - 5% chance
+                            if (Math.random() < 0.05) {
                                 seedAppointments.push({
-                                    id: `mock-block-${p.id}-${d}`,
+                                    id: `mock-block-${p.id}-${d}-${h}`,
                                     provider_id: p.id,
                                     member_id: null,
                                     start_time: slotStart.toISOString(),
@@ -184,18 +190,18 @@ export const api = {
                                     status: 'blocked',
                                     is_booked: true,
                                     created_at: now.toISOString(),
-                                    notes: 'Lunch Break',
+                                    notes: 'Admin Block',
                                     provider: { token_alias: p.alias, service_type: p.service }
                                 });
-                                continue;
+                                return;
                             }
 
-                            // 20% Chance of being already booked by "another patient"
-                            if (Math.random() < 0.2) {
+                            // Random "Other Patient" Booking - 30% chance (Populate schedule)
+                            if (Math.random() < 0.3) {
                                 seedAppointments.push({
                                     id: `mock-booked-${p.id}-${d}-${h}`,
                                     provider_id: p.id,
-                                    member_id: 'other-random-id',
+                                    member_id: `other-patient-${Math.floor(Math.random() * 999)}`,
                                     start_time: slotStart.toISOString(),
                                     end_time: new Date(slotStart.getTime() + 60 * 60 * 1000).toISOString(),
                                     status: 'confirmed',
@@ -203,42 +209,42 @@ export const api = {
                                     created_at: now.toISOString(),
                                     provider: { token_alias: p.alias, service_type: p.service }
                                 });
-                                continue;
+                                return;
                             }
 
-                            // Otherwise, OPEN SLOT
+                            // Specific User Appointments (Ensure user has some future stuff)
+                            // Assign ~1 slot every 14 days to the current user
+                            if (d % 14 === 0 && h === 9 && p.id === 'mock-provider-jameson') {
+                                seedAppointments.push({
+                                    id: `mock-user-recurring-${d}`,
+                                    provider_id: p.id,
+                                    member_id: user.id, // THE LOGGED IN USER
+                                    start_time: slotStart.toISOString(),
+                                    end_time: new Date(slotStart.getTime() + 60 * 60 * 1000).toISOString(),
+                                    status: 'confirmed',
+                                    is_booked: true,
+                                    created_at: now.toISOString(),
+                                    notes: 'Recurring Therapy Session',
+                                    provider: { token_alias: p.alias, service_type: p.service }
+                                });
+                                return;
+                            }
+
+                            // Otherwise: OPEN SLOT
                             seedAppointments.push({
                                 id: `mock-gen-${p.id}-${d}-${h}`,
                                 provider_id: p.id,
                                 member_id: null,
-                                start_time: slotStart.toISOString(),
+                                start_time: slotStart.toISOString(), // ISO Format
                                 end_time: new Date(slotStart.getTime() + 60 * 60 * 1000).toISOString(),
                                 status: 'pending',
                                 is_booked: false,
                                 created_at: now.toISOString(),
                                 provider: { token_alias: p.alias, service_type: p.service }
                             });
-                        }
+                        });
                     });
                 }
-
-                // 3. Add one upcoming appointment for current user
-                const futureDate = new Date(now);
-                futureDate.setDate(now.getDate() + 2);
-                futureDate.setHours(14, 0, 0, 0);
-
-                seedAppointments.push({
-                    id: `mock-appt-future-user`,
-                    provider_id: 'mock-provider-taylor',
-                    member_id: user.id,
-                    start_time: futureDate.toISOString(),
-                    end_time: new Date(futureDate.getTime() + 60 * 60 * 1000).toISOString(),
-                    status: 'confirmed',
-                    is_booked: true,
-                    created_at: now.toISOString(),
-                    notes: 'Physical Therapy Assessment | Location: Gym B',
-                    provider: { token_alias: 'Dr. Taylor', service_type: 'PT_GOLD' }
-                });
 
                 api.mockStore.appointments = seedAppointments;
                 api.mockStore.init = true;
