@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { api, type ProviderResource } from '../../lib/api';
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
@@ -24,7 +24,7 @@ export const ProviderResources: React.FC = () => {
     const [category, setCategory] = useState<ProviderResource['category']>('video');
     const [description, setDescription] = useState('');
 
-    const loadResources = async () => {
+    const loadResources = useCallback(async () => {
         setLoading(true);
         try {
             const data = await api.getMyResources();
@@ -34,11 +34,11 @@ export const ProviderResources: React.FC = () => {
         } finally {
             setLoading(false);
         }
-    };
+    }, []);
 
     useEffect(() => {
         loadResources();
-    }, []);
+    }, [loadResources]);
 
     const handleAdd = async (e: React.FormEvent) => {
         e.preventDefault();

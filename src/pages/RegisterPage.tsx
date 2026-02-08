@@ -43,8 +43,9 @@ export default function RegisterPage() {
             // In Project Vector, self-registration might require manual approval
             // but for this PoC we navigate to dashboard
             navigate('/dashboard');
-        } catch (err: any) {
-            setError(err.message.toUpperCase());
+        } catch (err) {
+            const error = err as { message: string };
+            setError(error.message.toUpperCase());
         } finally {
             setLoading(false);
         }

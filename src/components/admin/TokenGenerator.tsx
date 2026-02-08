@@ -4,6 +4,7 @@ import { Input } from '../ui/Input';
 import { Printer, Copy, Check, LayoutGrid, List, Trash2 } from 'lucide-react';
 import { QRCodeCanvas } from 'qrcode.react';
 import { api } from '../../lib/api';
+import type { PublicUser } from '../../lib/api/types';
 
 type ServiceType = 'PT_BLUE' | 'MH_GREEN' | 'PCM_RED';
 
@@ -14,6 +15,15 @@ interface TokenBatch {
     tokens: string[];
 }
 
+interface DirectoryUser {
+    id: string;
+    token_alias?: string;
+    email?: string;
+    service_type: string;
+    role: string;
+    created_at?: string;
+}
+
 interface TokenGeneratorProps {
     isProvider?: boolean;
 }
@@ -22,6 +32,7 @@ export default function TokenGenerator({ isProvider = false }: TokenGeneratorPro
     const [serviceType, setServiceType] = useState<ServiceType>('PT_BLUE');
     const [targetRole, setTargetRole] = useState<'member' | 'provider'>('member');
     const [quantity, setQuantity] = useState(5); // Default lowered for DB safety
+    const [cohortTag, setCohortTag] = useState('');
     const [isGenerating, setIsGenerating] = useState(false);
     const [lastBatch, setLastBatch] = useState<TokenBatch | null>(null);
     const [copiedToken, setCopiedToken] = useState<string | null>(null);
@@ -29,7 +40,7 @@ export default function TokenGenerator({ isProvider = false }: TokenGeneratorPro
 
     // Directory Mode
     const [mode, setMode] = useState<'provision' | 'directory'>('provision');
-    const [directory, setDirectory] = useState<any[]>([]);
+    const [directory, setDirectory] = useState<DirectoryUser[]>([]);
     const [loadingDir, setLoadingDir] = useState(false);
 
     // Filter & Selection State
@@ -85,7 +96,7 @@ export default function TokenGenerator({ isProvider = false }: TokenGeneratorPro
             alert('Bulk Action Complete');
             setSelectedIds(new Set());
             loadDirectory();
-        } catch (e) {
+        } catch {
             alert('Bulk Delete Error');
         } finally {
             setLoadingDir(false);
@@ -102,9 +113,9 @@ export default function TokenGenerator({ isProvider = false }: TokenGeneratorPro
                 api.getProviders()
             ]);
             // Merge (sorting handled by processedDirectory)
-            const allUsers = [
-                ...providers.map((p: any) => ({ ...p, role: 'provider' })),
-                ...members.map((m: any) => ({ ...m, role: 'member' }))
+            const allUsers: DirectoryUser[] = [
+                ...providers.map((p: PublicUser) => ({ ...p, role: 'provider' })),
+                ...members.map((m: PublicUser) => ({ ...m, role: 'member' }))
             ];
 
             setDirectory(allUsers);
@@ -160,7 +171,13 @@ export default function TokenGenerator({ isProvider = false }: TokenGeneratorPro
 
                 // PREFIX: M (Member) or P (Provider) for quick visual ID, although not strictly required
                 // Using Service Prefix is standard
-                const token = `${serviceType}-${seg1}-${seg2}-${seg3}`;
+                const tokenParts: string[] = [serviceType];
+                if (cohortTag.trim()) {
+                    tokenParts.push(cohortTag.trim().toUpperCase().replace(/[^A-Z0-9]/g, '').substring(0, 8));
+                }
+                tokenParts.push(seg1, seg2, seg3);
+
+                const token = tokenParts.join('-');
 
                 // DB Provisioning
                 // Email Strategy: token@vector.mil (Standardized Pattern)
@@ -268,7 +285,7 @@ export default function TokenGenerator({ isProvider = false }: TokenGeneratorPro
                             </div>
                         )}
 
-                        <div className="md:col-span-4 space-y-2">
+                        <div className="md:col-span-3 space-y-2">
                             <label className="text-[10px] uppercase text-slate-400 font-black tracking-widest">Service Affiliation</label>
                             <select
                                 value={serviceType}
@@ -283,6 +300,17 @@ export default function TokenGenerator({ isProvider = false }: TokenGeneratorPro
                         </div>
 
                         <div className="md:col-span-2 space-y-2">
+                            <label className="text-[10px] uppercase text-slate-400 font-black tracking-widest">Cohort Tag</label>
+                            <Input
+                                value={cohortTag}
+                                onChange={e => setCohortTag(e.target.value)}
+                                placeholder="OPTIONAL"
+                                className="bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800 text-xs font-bold text-slate-700 dark:text-slate-300 h-10 uppercase placeholder:text-slate-300 dark:placeholder:text-slate-600"
+                                maxLength={8}
+                            />
+                        </div>
+
+                        <div className="md:col-span-2 space-y-2">
                             <label className="text-[10px] uppercase text-slate-400 font-black tracking-widest">Qty</label>
                             <Input
                                 type="number"
@@ -294,14 +322,14 @@ export default function TokenGenerator({ isProvider = false }: TokenGeneratorPro
                             />
                         </div>
 
-                        <div className="md:col-span-3">
+                        <div className="md:col-span-2">
                             <Button
                                 onClick={generateTokens}
                                 isLoading={isGenerating}
                                 disabled={isGenerating}
                                 className="w-full h-10 bg-indigo-600 hover:bg-indigo-700 text-white font-black text-xs uppercase tracking-widest shadow-md"
                             >
-                                {isGenerating ? `Provisoning (${statusParams.success}/${statusParams.total})...` : 'Generate Identities'}
+                                {isGenerating ? `Provisioning (${statusParams.success}/${statusParams.total})...` : 'Generate Identities'}
                             </Button>
                         </div>
                     </div>
@@ -332,7 +360,7 @@ export default function TokenGenerator({ isProvider = false }: TokenGeneratorPro
                                 <select
                                     className="h-8 rounded border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 px-2 text-[10px] font-bold uppercase outline-none focus:ring-2 focus:ring-indigo-500/10 text-slate-700 dark:text-slate-300"
                                     value={sortBy}
-                                    onChange={e => setSortBy(e.target.value as any)}
+                                    onChange={e => setSortBy(e.target.value as 'created_desc' | 'alias_asc' | 'role')}
                                 >
                                     <option value="created_desc">Newest First</option>
                                     <option value="alias_asc">Alias (A-Z)</option>
@@ -406,18 +434,18 @@ export default function TokenGenerator({ isProvider = false }: TokenGeneratorPro
                                                 {user.service_type || 'N/A'}
                                             </td>
                                             <td className="px-4 py-3 text-[10px] font-mono text-slate-400">
-                                                {(user as any).created_at ? new Date((user as any).created_at).toLocaleDateString() : '-'}
+                                                {user.created_at ? new Date(user.created_at).toLocaleDateString() : '-'}
                                             </td>
                                             <td className="px-4 py-3 text-right">
                                                 <div className="flex items-center justify-end gap-2">
                                                     <button
-                                                        onClick={() => handleResetPin(user.id, user.token_alias)}
+                                                        onClick={() => handleResetPin(user.id, user.token_alias || '')}
                                                         className="text-[9px] font-black uppercase text-amber-500 hover:bg-amber-50 hover:text-amber-700 px-2 py-1 rounded transition-colors"
                                                     >
                                                         Reset PIN
                                                     </button>
                                                     <button
-                                                        onClick={() => handleDelete(user.id, user.token_alias)}
+                                                        onClick={() => handleDelete(user.id, user.token_alias || '')}
                                                         className="p-1 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
                                                         title="Delete User"
                                                     >

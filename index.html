@@ -3,21 +3,61 @@
 
 <head>
   <meta charset="UTF-8" />
+  <meta name="description"
+    content="Project Vector - Secure, Anonymous Clinical Scheduling System for high-compliance environments requiring Zero-Trust architecture." />
   <link rel="icon" type="image/png" href="/pwa-192x192.png" />
   <link rel="apple-touch-icon" href="/pwa-192x192.png">
+
+  <!-- Google Fonts: Inter (UI) + JetBrains Mono (Tokens/Code) -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link
-    href="https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&display=swap"
+    href="https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&family=JetBrains+Mono:wght@500;700&display=swap"
     rel="stylesheet">
+
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <meta http-equiv="Content-Security-Policy"
+    content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https://*.supabase.co; connect-src 'self' https://*.supabase.co wss://*.supabase.co; worker-src 'self' blob:; manifest-src 'self';">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <title>Project Vector</title>
+  <meta name="theme-color" content="#0a1628" />
+  <title>Project Vector | Secure Clinical Scheduling</title>
 </head>
 
 <body>
-  <div id="root"></div>
+  <!-- Skip Navigation for Keyboard Users (WCAG 2.1 A) -->
+  <a href="#main-content" class="skip-link" style="
+    position: absolute;
+    top: -100%;
+    left: 50%;
+    transform: translateX(-50%);
+    background: #3b82f6;
+    color: white;
+    padding: 12px 24px;
+    border-radius: 0 0 8px 8px;
+    font-weight: bold;
+    text-decoration: none;
+    z-index: 10000;
+    transition: top 0.2s ease;
+    font-family: system-ui, sans-serif;
+  " onfocus="this.style.top='0'" onblur="this.style.top='-100%'">
+    Skip to main content
+  </a>
+  
+  <div id="root"
+    style="background-color: #0f172a; color: #475569; display: flex; align-items: center; justify-content: center; height: 100vh; font-family: sans-serif;">
+    <div style="text-align: center;">
+      <h1 style="color: #3b82f6;">PROJECT VECTOR</h1>
+      <p>System Initializing...</p>
+      <small style="color: #334155;">If this persists, the application runtime has failed.</small>
+    </div>
+  </div>
+  <script>
+    window.onerror = function (message, source, lineno, colno, error) {
+      console.error("Global Error:", error);
+      document.body.innerHTML += '<div style="color:red; background:black; padding:20px; position:fixed; top:0; left:0; width:100%; z-index:9999;">CRITICAL RUNTIME ERROR: ' + message + '</div>';
+    };
+  </script>
   <script type="module" src="/src/main.tsx"></script>
 </body>
 

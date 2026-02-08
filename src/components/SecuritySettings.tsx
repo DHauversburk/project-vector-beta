@@ -39,7 +39,7 @@ export const SecuritySettings: React.FC = () => {
             setMessage({ type: 'success', text: 'SECURITY PIN UPDATED' });
             setPin('');
             setConfirmPin('');
-        } catch (err: any) {
+        } catch {
             setMessage({ type: 'error', text: 'SYSTEM ERROR: UNABLE TO SET PIN' });
         } finally {
             setLoading(false);
@@ -56,7 +56,7 @@ export const SecuritySettings: React.FC = () => {
             } else {
                 setMessage({ type: 'error', text: 'SENSOR REJECTED SIGNATURE' });
             }
-        } catch (err) {
+        } catch {
             setMessage({ type: 'error', text: 'BIOMETRIC SYSTEM ERROR' });
         } finally {
             setLoading(false);

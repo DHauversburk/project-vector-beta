@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { api } from '../../lib/api';
 import { Button } from '../ui/Button';
 import { Trash2, RefreshCw, AlertTriangle, CheckCircle, Database } from 'lucide-react';
@@ -12,6 +12,7 @@ export const SystemMaintenance = () => {
         errors_today: number,
         duplicates: number
     } | null>(null);
+    const pruneDaysRef = useRef(60);
 
     const scanDatabase = async () => {
         setLoading(true);
@@ -144,8 +145,7 @@ export const SystemMaintenance = () => {
                                 className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded px-2 py-1"
                                 defaultValue={60}
                                 onChange={(e) => {
-                                    // Simple local var approach since strict state binding is verbose for this snippet
-                                    (window as any)._pruneDays = parseInt(e.target.value);
+                                    pruneDaysRef.current = parseInt(e.target.value);
                                 }}
                             >
                                 <option value="30">30 Days</option>
@@ -159,7 +159,7 @@ export const SystemMaintenance = () => {
                         </p>
                         <Button
                             onClick={async () => {
-                                const days = (window as any)._pruneDays || 60;
+                                const days = pruneDaysRef.current;
                                 if (!confirm(`CONFIRM: Delete inactive MEMBER accounts older than ${days} days?`)) return;
                                 try {
                                     setLoading(true);

@@ -1,19 +1,37 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback, lazy, Suspense } from 'react';
 import { api } from '../lib/api';
-import TokenGenerator from '../components/admin/TokenGenerator';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
-import { CalendarRange, Users, BarChart3, ShieldAlert, Moon, Sun, Shield, Activity, LogOut, Calendar, LayoutGrid, Menu, X } from 'lucide-react';
-import { useTheme } from '../contexts/ThemeContext';
+import { CalendarRange, Users, BarChart3, ShieldAlert, Shield, LayoutGrid, X, FileText } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { addDays } from 'date-fns';
 import { ProviderSchedule } from '../components/provider/ProviderSchedule';
-import { AnalyticsDashboard } from '../components/provider/AnalyticsDashboard';
-import { SecuritySettings } from '../components/SecuritySettings';
-import { ProviderResources } from '../components/provider/ProviderResources';
 import { ProviderOverview } from '../components/provider/ProviderOverview';
 import { ErrorBoundary } from '../components/ui/ErrorBoundary';
 import { Toaster } from 'sonner';
+import { QuickNoteModal } from '../components/ui/QuickNoteModal';
+import { DashboardLayout, type NavItem } from '../components/layout/DashboardLayout';
+import { WelcomeModal } from '../components/onboarding/WelcomeModal';
+import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '../components/ui/Card';
+import { Badge } from '../components/ui/Badge';
+
+import { LoadingState } from '../components/ui/LoadingState';
+
+// --- LAZY-LOADED COMPONENTS ---
+const TokenGenerator = lazy(() => import('../components/admin/TokenGenerator'));
+const AnalyticsDashboard = lazy(() => import('../components/provider/AnalyticsDashboard').then(m => ({ default: m.AnalyticsDashboard })));
+const SecuritySettings = lazy(() => import('../components/SecuritySettings').then(m => ({ default: m.SecuritySettings })));
+const ProviderResources = lazy(() => import('../components/provider/ProviderResources').then(m => ({ default: m.ProviderResources })));
+const EncounterLogs = lazy(() => import('../components/provider/EncounterLogs').then(m => ({ default: m.EncounterLogs })));
+
+/**
+ * Feature-level loading fallback
+ */
+const FeatureLoading = () => (
+    <div className="w-full flex justify-center py-12">
+        <LoadingState message="INITIALIZING CLINICAL NODE..." />
+    </div>
+);
 
 type Member = {
     id: string;
@@ -24,10 +42,8 @@ type Member = {
 };
 
 export default function ProviderDashboard() {
-    const { theme, setTheme } = useTheme();
-    const { signOut } = useAuth();
-    const [view, setView] = useState<'overview' | 'schedule' | 'tokens' | 'resources' | 'analytics' | 'security'>('overview');
-    const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+    const { user, signOut } = useAuth();
+    const [view, setView] = useState<'overview' | 'schedule' | 'tokens' | 'logs' | 'resources' | 'analytics' | 'security'>('overview');
     const [loading, setLoading] = useState(true);
     const [genLoading, setGenLoading] = useState(false);
     const [scheduleKey, setScheduleKey] = useState(0);
@@ -45,7 +61,6 @@ export default function ProviderDashboard() {
     const [days] = useState<number[]>([1, 2, 3, 4, 5]);
     const [isBlockMode, setIsBlockMode] = useState(false);
     const [blockReason, setBlockReason] = useState('');
-    const [customLocation] = useState('');
 
     // Clear Schedule State
     const [clearOpen, setClearOpen] = useState(false);
@@ -53,24 +68,20 @@ export default function ProviderDashboard() {
     const [clearStart, setClearStart] = useState(new Date().toISOString().split('T')[0]);
     const [clearEnd, setClearEnd] = useState(addDays(new Date(), 14).toISOString().split('T')[0]);
 
-    // Token Manager State
     const [members, setMembers] = useState<Member[]>([]);
     const [memberSearch] = useState('');
-    const [editingMember, setEditingMember] = useState<Member | null>(null);
-    const [newAlias, setNewAlias] = useState('');
 
+    // Quick Note State
+    const [quickNoteOpen, setQuickNoteOpen] = useState(false);
 
-
-
-
-    const loadMembers = async () => {
+    const loadMembers = useCallback(async () => {
         try {
             const data = await api.getMembers(memberSearch);
             setMembers(data as Member[]);
         } catch (error) {
             console.error(error);
         }
-    };
+    }, [memberSearch]);
 
     useEffect(() => {
         setLoading(false);
@@ -78,7 +89,7 @@ export default function ProviderDashboard() {
 
     useEffect(() => {
         if (view === 'tokens') loadMembers();
-    }, [view, memberSearch]);
+    }, [view, memberSearch, loadMembers]);
 
     const handleClear = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -96,7 +107,7 @@ export default function ProviderDashboard() {
             alert('Schedule cleared successfully.');
         } catch (error) {
             console.error(error);
-            alert('Failed to clear schedule.');
+            alert('Failed to clear schedule');
         } finally {
             setGenLoading(false);
         }
@@ -104,276 +115,360 @@ export default function ProviderDashboard() {
 
     const handleGenerate = async (e: React.FormEvent) => {
         e.preventDefault();
-        const startH = parseInt(startTime.split(':')[0]);
-        const endH = parseInt(endTime.split(':')[0]);
-
-        if (!isBlockMode) {
-            if (startH < 7 || startH > 16 || endH > 17 || startH > endH) {
-                if (!confirm(`Warning: You are generating slots outside of Standard Duty Hours (07:30 - 16:30). Selected: ${startTime} - ${endTime}. Continue?`)) {
-                    return;
-                }
-            }
-        }
-
         setGenLoading(true);
         try {
-            const localStartTime = isBlockMode ? blockStartTime : startTime;
-            const localEndTime = isBlockMode ? blockEndTime : endTime;
-            const count = await api.generateSlots(startDate, endDate, localStartTime, localEndTime, duration, breakTime, days, isBlockMode, isBlockMode ? blockReason : (customLocation ? `Location: ${customLocation}` : null));
-            console.log(`Complete: ${count} slots.`);
+            await api.generateSlots(
+                startDate,
+                endDate,
+                isBlockMode ? blockStartTime : startTime,
+                isBlockMode ? blockEndTime : endTime,
+                isBlockMode ? 0 : duration,
+                isBlockMode ? 0 : breakTime,
+                days,
+                isBlockMode,
+                isBlockMode ? blockReason : null
+            );
             setGeneratorOpen(false);
-            setBlockReason('');
             setScheduleKey(prev => prev + 1);
-        } catch (error) {
-            console.error(error);
+            alert(isBlockMode ? 'Block-out time added.' : 'Slots generated successfully.');
+        } catch (error: unknown) {
+            const err = error as Error;
+            console.error(err);
+            alert('Generation Failed: ' + err.message);
         } finally {
             setGenLoading(false);
         }
     };
 
-    const toggleMemberStatus = async (member: Member) => {
-        const newStatus = member.status === 'active' ? 'disabled' : 'active';
-        if (!confirm(`Restrict system access for ${member.token_alias}?`)) return;
-        try {
-            await api.updateUser(member.id, { status: newStatus });
-            loadMembers();
-        } catch (error) { console.error(error); }
-    };
+    const navItems: NavItem[] = [
+        { id: 'overview', label: 'Overview', icon: LayoutGrid, onClick: () => setView('overview'), dataTour: 'nav-overview' },
+        { id: 'schedule', label: 'Schedule', icon: CalendarRange, onClick: () => setView('schedule'), dataTour: 'nav-schedule' },
+        { id: 'tokens', label: 'Patient List', icon: Users, onClick: () => setView('tokens'), dataTour: 'nav-patients' },
+        { id: 'logs', label: 'Clinical Logs', icon: FileText, onClick: () => setView('logs'), dataTour: 'nav-logs' },
+        { id: 'resources', label: 'Resources', icon: FileText, onClick: () => setView('resources') },
+        { id: 'analytics', label: 'Analytics', icon: BarChart3, onClick: () => setView('analytics'), dataTour: 'nav-analytics' },
+        { id: 'security', label: 'Security', icon: Shield, onClick: () => setView('security'), dataTour: 'nav-security' }
+    ];
 
-    const handleRekey = async (e: React.FormEvent) => {
-        e.preventDefault();
-        if (!editingMember) return;
-        try {
-            await api.updateUser(editingMember.id, { token_alias: newAlias });
-            setEditingMember(null);
-            setNewAlias('');
-            loadMembers();
-        } catch (error) { console.error(error); }
-    };
-
-
-
-
-
-
-
-    if (loading) return <div>Loading...</div>;
+    if (loading) {
+        return (
+            <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex items-center justify-center p-4">
+                <div className="flex flex-col items-center gap-4 animate-pulse">
+                    <img src="/pwa-192x192.png" alt="Vector" className="w-12 h-12 rounded opacity-50 grayscale" />
+                    <p className="text-[10px] font-black tracking-widest text-slate-400 uppercase">Loading Provider Portal...</p>
+                </div>
+            </div>
+        );
+    }
 
     return (
-        <div className="min-h-screen w-full bg-slate-50 dark:bg-slate-950 font-sans selection:bg-indigo-100 transition-colors flex flex-col">
-            {/* Header */}
-            <div className="bg-white dark:bg-slate-900 border-b border-slate-300 dark:border-slate-800 sticky top-0 z-50 shadow-sm transition-colors flex-shrink-0">
-                <div className="max-w-7xl mx-auto px-4 h-14 flex items-center justify-between">
-                    <div className="flex items-center gap-4">
-                        <Activity className="w-8 h-8 text-indigo-600 p-1.5 bg-indigo-50 dark:bg-indigo-900/30 rounded" />
-                        <div>
-                            <h1 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-widest leading-none">Clinical Portal</h1>
-                            <p className="text-[10px] font-bold text-slate-500 uppercase mt-0.5">Clinical Care Unit</p>
-                        </div>
-                    </div>
-
-                    {/* Desktop Navigation */}
-                    <div className="hidden md:flex items-center gap-4">
-                        <div className="flex items-center gap-3">
-                            <div className="flex bg-slate-100 dark:bg-slate-900 rounded-lg p-1.5 gap-1">
-                                <Button variant={view === 'overview' ? 'secondary' : 'ghost'} size="sm" onClick={() => setView('overview')} className={cn("text-xs font-black uppercase tracking-wider", view === 'overview' && "bg-white dark:bg-slate-800 shadow-sm")}> <LayoutGrid className="w-3.5 h-3.5 mr-2" /> Dashboard </Button>
-                                <Button variant={view === 'schedule' ? 'secondary' : 'ghost'} size="sm" onClick={() => setView('schedule')} className={cn("text-xs font-black uppercase tracking-wider", view === 'schedule' && "bg-white dark:bg-slate-800 shadow-sm")}> <CalendarRange className="w-3.5 h-3.5 mr-2" /> Schedule </Button>
-                                <Button variant={view === 'tokens' ? 'secondary' : 'ghost'} size="sm" onClick={() => setView('tokens')} className={cn("text-xs font-black uppercase tracking-wider", view === 'tokens' && "bg-white dark:bg-slate-800 shadow-sm")}> <Users className="w-3.5 h-3.5 mr-2" /> Patients </Button>
-                                <Button variant={view === 'analytics' ? 'secondary' : 'ghost'} size="sm" onClick={() => setView('analytics')} className={cn("text-xs font-black uppercase tracking-wider", view === 'analytics' && "bg-white dark:bg-slate-800 shadow-sm")}> <BarChart3 className="w-3.5 h-3.5 mr-2" /> Analytics </Button>
-                                <Button variant={view === 'resources' ? 'secondary' : 'ghost'} size="sm" onClick={() => setView('resources')} className={cn("text-xs font-black uppercase tracking-wider", view === 'resources' && "bg-white dark:bg-slate-800 shadow-sm")}> <Calendar className="w-3.5 h-3.5 mr-2" /> Resources </Button>
-                                <Button variant={view === 'security' ? 'secondary' : 'ghost'} size="sm" onClick={() => setView('security')} className={cn("text-xs font-black uppercase tracking-wider", view === 'security' && "bg-white dark:bg-slate-800 shadow-sm")}> <Shield className="w-3.5 h-3.5 mr-2" /> Security </Button>
-                            </div>
-                            <button onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')} className="p-2 text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors border border-slate-300 dark:border-slate-700"> {theme === 'dark' ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />} </button>
-                            <button onClick={signOut} className="p-2 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors border border-slate-300 dark:border-slate-700"> <LogOut className="w-4 h-4" /> </button>
-                        </div>
-                    </div>
-
-                    {/* Mobile Menu Toggle */}
-                    <div className="flex md:hidden items-center gap-2">
-                        <button onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')} className="p-2 text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors border border-slate-300 dark:border-slate-700"> {theme === 'dark' ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />} </button>
-                        <button onClick={() => setMobileMenuOpen(!mobileMenuOpen)} className="p-2 text-slate-900 dark:text-white">
-                            {mobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
-                        </button>
-                    </div>
-                </div>
-
-                {/* Mobile Menu Overlay */}
-                {mobileMenuOpen && (
-                    <div className="absolute top-14 left-0 w-full bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 shadow-xl md:hidden flex flex-col p-4 gap-2 animate-in slide-in-from-top-2">
-                        <Button variant={view === 'overview' ? 'secondary' : 'ghost'} size="sm" onClick={() => { setView('overview'); setMobileMenuOpen(false); }} className="justify-start h-10 text-xs font-black uppercase tracking-wider"> <LayoutGrid className="w-4 h-4 mr-3" /> Dashboard </Button>
-                        <Button variant={view === 'schedule' ? 'secondary' : 'ghost'} size="sm" onClick={() => { setView('schedule'); setMobileMenuOpen(false); }} className="justify-start h-10 text-xs font-black uppercase tracking-wider"> <CalendarRange className="w-4 h-4 mr-3" /> Schedule </Button>
-                        <Button variant={view === 'tokens' ? 'secondary' : 'ghost'} size="sm" onClick={() => { setView('tokens'); setMobileMenuOpen(false); }} className="justify-start h-10 text-xs font-black uppercase tracking-wider"> <Users className="w-4 h-4 mr-3" /> Patients </Button>
-                        <Button variant={view === 'analytics' ? 'secondary' : 'ghost'} size="sm" onClick={() => { setView('analytics'); setMobileMenuOpen(false); }} className="justify-start h-10 text-xs font-black uppercase tracking-wider"> <BarChart3 className="w-4 h-4 mr-3" /> Analytics </Button>
-                        <Button variant={view === 'resources' ? 'secondary' : 'ghost'} size="sm" onClick={() => { setView('resources'); setMobileMenuOpen(false); }} className="justify-start h-10 text-xs font-black uppercase tracking-wider"> <Calendar className="w-4 h-4 mr-3" /> Resources </Button>
-                        <Button variant={view === 'security' ? 'secondary' : 'ghost'} size="sm" onClick={() => { setView('security'); setMobileMenuOpen(false); }} className="justify-start h-10 text-xs font-black uppercase tracking-wider"> <Shield className="w-4 h-4 mr-3" /> Security </Button>
-                        <div className="h-px bg-slate-100 dark:bg-slate-800 my-1" />
-                        <Button variant="ghost" size="sm" onClick={signOut} className="justify-start h-10 text-xs font-black uppercase tracking-wider text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-900/20"> <LogOut className="w-4 h-4 mr-3" /> Sign Out </Button>
-                    </div>
-                )}
-            </div>
-
-            {/* Content Area */}
-            <div className="flex-1 bg-slate-50 dark:bg-slate-950/50">
+        <DashboardLayout
+            navItems={navItems}
+            activeTab={view}
+            user={{ ...user, user_metadata: { token_alias: 'PROVIDER' } }}
+            role="Provider"
+            onSignOut={signOut}
+            title="Provider Portal"
+            headerActions={
+                <Button
+                    onClick={() => setQuickNoteOpen(true)}
+                    size="sm"
+                    variant="gradient"
+                    className="h-9 px-3 text-[10px] font-black uppercase tracking-widest shadow-lg shadow-indigo-500/20"
+                    data-tour="quick-note"
+                >
+                    <FileText className="w-4 h-4 mr-2" />
+                    Quick Note
+                </Button>
+            }
+        >
+            <WelcomeModal role="provider" userName="Provider Console" />
+            <div className="max-w-[1600px] mx-auto px-4 md:px-6 pt-2 pb-4 md:pt-4 md:pb-6 space-y-4 md:space-y-6">
                 <ErrorBoundary fallbackTitle="Dashboard Module Failure">
-                    {view === 'overview' && <ProviderOverview onNavigate={(v) => setView(v as any)} />}
+                    {view === 'overview' && <ProviderOverview onNavigate={(v) => setView(v as typeof view)} />}
 
                     {view === 'schedule' && (
-                        <div className="h-full flex flex-col p-4 sm:p-6 max-w-[1600px] mx-auto w-full">
-                            <div className="flex items-center justify-between mb-4">
+                        <Card variant="default" className="border-none shadow-md animate-in fade-in duration-500">
+                            <CardHeader className="flex flex-row items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-6">
                                 <div>
-                                    <h3 className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Schedule Management</h3>
-                                    <p className="text-xs font-bold text-slate-600 dark:text-slate-400 uppercase">Care Provider Availability</p>
+                                    <CardTitle className="text-2xl font-black">Schedule Management</CardTitle>
+                                    <CardDescription>Manage your availability and view upcoming appointments.</CardDescription>
                                 </div>
-                                <div className="flex items-center gap-2">
-                                    <Button onClick={() => setClearOpen(!clearOpen)} variant={clearOpen ? 'secondary' : 'outline'} size="sm" className="h-8 px-4 rounded-md text-[10px] font-black uppercase tracking-widest shadow-sm">Clear</Button>
-                                    <Button onClick={() => setGeneratorOpen(!generatorOpen)} variant={generatorOpen ? 'secondary' : 'outline'} size="sm" className="h-8 px-4 rounded-md text-[10px] font-black uppercase tracking-widest shadow-sm">Generate</Button>
+                                <div className="flex gap-2">
+                                    <Button onClick={() => setGeneratorOpen(true)} size="sm" variant="outline" className="h-9 text-xs font-bold uppercase tracking-wider">
+                                        <CalendarRange className="w-4 h-4 mr-2" />
+                                        Auto-Generate
+                                    </Button>
+                                    <Button onClick={() => setClearOpen(true)} size="sm" variant="destructive" className="h-9 text-xs font-bold uppercase tracking-wider">
+                                        <X className="w-4 h-4 mr-2" />
+                                        Clear
+                                    </Button>
                                 </div>
-                            </div>
-                            {/* Generator & Clear UI omitted for brevity, adding back the Schedule Component */}
-                            {/* Clear UI */}
-                            {clearOpen && (
-                                <div className="bg-white dark:bg-slate-900 p-6 rounded-lg shadow-xl mb-4 border border-red-200 dark:border-red-900/30">
-                                    <h4 className="text-xs font-black uppercase text-red-600 mb-4 flex items-center gap-2">
-                                        <ShieldAlert className="w-4 h-4" /> Clear Schedule
-                                    </h4>
-                                    <form onSubmit={handleClear} className="grid grid-cols-1 md:grid-cols-12 gap-6">
-                                        <div className="md:col-span-4 space-y-2">
-                                            <label className="text-[10px] font-black uppercase text-slate-500">Date Range</label>
-                                            <div className="flex gap-2">
-                                                <Input type="date" value={clearStart} onChange={e => setClearStart(e.target.value)} className="h-9 text-xs" required />
-                                                <Input type="date" value={clearEnd} onChange={e => setClearEnd(e.target.value)} className="h-9 text-xs" required />
-                                            </div>
-                                        </div>
-                                        <div className="md:col-span-6 flex items-center gap-4">
-                                            <label className="flex items-center gap-2 cursor-pointer p-2 border border-slate-200 dark:border-slate-800 rounded bg-slate-50 dark:bg-slate-950">
-                                                <input
-                                                    type="checkbox"
-                                                    checked={cleanBooked}
-                                                    onChange={e => setCleanBooked(e.target.checked)}
-                                                    className="w-4 h-4 text-red-600 rounded focus:ring-red-500"
-                                                />
-                                                <span className="text-[10px] font-bold uppercase text-slate-600 dark:text-slate-400">
-                                                    Include Booked Appointments
-                                                </span>
-                                            </label>
-                                            {cleanBooked && (
-                                                <span className="text-[10px] text-red-600 font-bold bg-red-50 dark:bg-red-900/20 px-2 py-1 rounded animate-pulse">
-                                                    WARNING: PATIENTS WILL BE CANCELLED
-                                                </span>
-                                            )}
-                                        </div>
-                                        <div className="md:col-span-2 flex items-end">
-                                            <Button type="submit" isLoading={genLoading} variant="secondary" className="w-full h-9 font-black text-[10px] uppercase tracking-widest bg-red-600 hover:bg-red-700 text-white">
-                                                Confirm Clear
-                                            </Button>
-                                        </div>
-                                    </form>
-                                </div>
-                            )}
+                            </CardHeader>
+                            <CardContent className="pt-6">
+                                <ProviderSchedule key={scheduleKey} />
+                            </CardContent>
+                        </Card>
+                    )}
 
-                            {generatorOpen && (
-                                <div className="bg-white dark:bg-slate-900 p-6 rounded-lg shadow-xl mb-4 border border-slate-200 dark:border-slate-800">
-                                    <form onSubmit={handleGenerate} className="grid grid-cols-1 md:grid-cols-12 gap-6">
-                                        <div className="md:col-span-12 flex justify-center pb-4 border-b border-slate-100 dark:border-slate-800 mb-2">
-                                            <div className="flex bg-slate-100 dark:bg-slate-950 p-1 rounded-lg">
-                                                <button type="button" onClick={() => setIsBlockMode(false)} className={`px-6 py-2 rounded-md text-[10px] font-black uppercase tracking-widest ${!isBlockMode ? 'bg-white shadow text-indigo-600' : 'text-slate-500'}`}>Add Availability</button>
-                                                <button type="button" onClick={() => setIsBlockMode(true)} className={`px-6 py-2 rounded-md text-[10px] font-black uppercase tracking-widest ${isBlockMode ? 'bg-indigo-600 text-white' : 'text-slate-500'}`}>Block Time</button>
-                                            </div>
-                                        </div>
-                                        <div className="md:col-span-4 space-y-2">
-                                            <label className="text-[10px] font-black uppercase text-slate-500">Date Window</label>
-                                            <div className="flex gap-2">
-                                                <Input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} className="h-9 text-xs" required />
-                                                <Input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} className="h-9 text-xs" required />
-                                            </div>
-                                        </div>
-                                        {!isBlockMode ? (
-                                            <div className="md:col-span-6 space-y-2">
-                                                <label className="text-[10px] font-black uppercase text-slate-500">Hours</label>
-                                                <div className="flex gap-2">
-                                                    <Input type="time" value={startTime} onChange={e => setStartTime(e.target.value)} className="h-9 text-xs" required />
-                                                    <Input type="time" value={endTime} onChange={e => setEndTime(e.target.value)} className="h-9 text-xs" required />
+                    {view === 'tokens' && (
+                        <div className="space-y-4 md:space-y-6 animate-in fade-in duration-500">
+                            <Card variant="default" className="border-none shadow-md">
+                                <CardHeader>
+                                    <CardTitle>IDENTITY MANAGEMENT</CardTitle>
+                                    <CardDescription>View and manage patient tokens and account statuses.</CardDescription>
+                                </CardHeader>
+                                <CardContent>
+                                    <Suspense fallback={<FeatureLoading />}>
+                                        <TokenGenerator isProvider={true} />
+                                    </Suspense>
+                                </CardContent>
+                            </Card>
+
+                            <Card variant="default" className="border-none shadow-md overflow-hidden bg-slate-50 dark:bg-slate-950/50 md:bg-white md:dark:bg-slate-900">
+                                <CardHeader className="bg-slate-50 dark:bg-slate-950/50 hidden md:block">
+                                    <CardTitle className="text-xs">Active Patient Directory</CardTitle>
+                                </CardHeader>
+                                <CardContent className="p-0">
+                                    {/* Mobile Card View */}
+                                    <div className="md:hidden divide-y divide-slate-200 dark:divide-slate-800">
+                                        {members.slice(0, 10).map(member => (
+                                            <div key={member.id} className="p-4 bg-white dark:bg-slate-900 flex items-center justify-between">
+                                                <div className="space-y-1">
+                                                    <div className="flex items-center gap-2">
+                                                        <span className="text-sm font-black font-mono text-slate-900 dark:text-white">{member.token_alias}</span>
+                                                        <Badge variant={member.status === 'active' ? 'success' : 'secondary'} size="sm" className="h-5 text-[9px] px-1.5">
+                                                            {member.status}
+                                                        </Badge>
+                                                    </div>
+                                                    <p className="text-[10px] text-slate-500 uppercase font-bold tracking-wide">
+                                                        Joined: {new Date(member.created_at).toLocaleDateString()}
+                                                    </p>
                                                 </div>
+                                                <Button size="sm" variant="ghost" onClick={() => console.log('Edit:', member.id)}>
+                                                    <span className="sr-only">Edit</span>
+                                                    <FileText className="w-4 h-4 text-slate-400" />
+                                                </Button>
                                             </div>
-                                        ) : (
-                                            <div className="md:col-span-6 space-y-2">
-                                                <label className="text-[10px] font-black uppercase text-slate-500">Block Time</label>
-                                                <div className="flex gap-2">
-                                                    <Input type="time" value={blockStartTime} onChange={e => setBlockStartTime(e.target.value)} className="h-9 text-xs" required />
-                                                    <Input type="time" value={blockEndTime} onChange={e => setBlockEndTime(e.target.value)} className="h-9 text-xs" required />
-                                                </div>
-                                                <Input value={blockReason} onChange={e => setBlockReason(e.target.value)} placeholder="Reason" className="h-9 text-xs mt-2" />
+                                        ))}
+                                        {members.length === 0 && (
+                                            <div className="p-8 text-center text-xs text-slate-400 font-black uppercase tracking-widest italic">
+                                                No patients found.
                                             </div>
                                         )}
-                                        <div className="md:col-span-2 flex items-end">
-                                            <Button type="submit" isLoading={genLoading} className="w-full h-9 font-black text-[10px] uppercase tracking-widest bg-indigo-600 text-white">Execute</Button>
-                                        </div>
-                                    </form>
-                                </div>
-                            )}
+                                    </div>
 
-                            <div className="bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden min-h-[600px] transition-colors flex-1">
-                                <ProviderSchedule key={scheduleKey} />
-                            </div>
+                                    {/* Desktop Table View */}
+                                    <div className="hidden md:block overflow-x-auto">
+                                        <table className="w-full text-left">
+                                            <thead className="bg-slate-50 dark:bg-slate-950 border-b border-slate-100 dark:border-slate-800">
+                                                <tr>
+                                                    <th className="p-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Alias</th>
+                                                    <th className="p-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Status</th>
+                                                    <th className="p-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Joined</th>
+                                                    <th className="p-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Actions</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                                                {members.slice(0, 10).map(member => (
+                                                    <tr key={member.id} className="group hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
+                                                        <td className="p-4 text-xs font-bold font-mono text-slate-700 dark:text-slate-300 group-hover:text-indigo-600 dark:group-hover:text-indigo-400">
+                                                            {member.token_alias}
+                                                        </td>
+                                                        <td className="p-4">
+                                                            <Badge variant={member.status === 'active' ? 'success' : 'secondary'} size="sm">
+                                                                {member.status}
+                                                            </Badge>
+                                                        </td>
+                                                        <td className="p-4 text-xs text-slate-500 font-bold uppercase">
+                                                            {new Date(member.created_at).toLocaleDateString()}
+                                                        </td>
+                                                        <td className="p-4 text-right">
+                                                            <Button size="sm" variant="ghost" onClick={() => console.log('Edit:', member.id)} className="h-8 text-[10px] font-black uppercase">
+                                                                Edit
+                                                            </Button>
+                                                        </td>
+                                                    </tr>
+                                                ))}
+                                                {members.length === 0 && (
+                                                    <tr>
+                                                        <td colSpan={4} className="p-12 text-center text-xs text-slate-400 font-black uppercase tracking-widest italic">
+                                                            No patients found. Use "Generate Identities" above to add some.
+                                                        </td>
+                                                    </tr>
+                                                )}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </CardContent>
+                            </Card>
                         </div>
                     )}
 
-                    {view === 'analytics' && <AnalyticsDashboard />}
-                    {view === 'resources' && <ProviderResources />}
-                    {view === 'security' && <SecuritySettings />}
+                    {view === 'resources' && (
+                        <Card variant="default" className="border-none shadow-md animate-in fade-in duration-500">
+                            <CardHeader>
+                                <CardTitle>Resource Library</CardTitle>
+                                <CardDescription>Manage educational content for your patients.</CardDescription>
+                            </CardHeader>
+                            <CardContent>
+                                <Suspense fallback={<FeatureLoading />}>
+                                    <ProviderResources />
+                                </Suspense>
+                            </CardContent>
+                        </Card>
+                    )}
 
-                    {view === 'tokens' && (
-                        <div className="space-y-6 p-6">
-                            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg p-6 shadow-sm">
-                                <TokenGenerator isProvider={true} />
-                            </div>
-                            <div className="bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
-                                <table className="w-full text-left">
-                                    <thead className="bg-slate-50 dark:bg-slate-950 border-b border-slate-100 dark:border-slate-800">
-                                        <tr>
-                                            <th className="px-4 py-3 text-[10px] font-black uppercase text-slate-600">Token</th>
-                                            <th className="px-4 py-3 text-[10px] font-black uppercase text-slate-600">Status</th>
-                                            <th className="px-4 py-3 text-[10px] font-black uppercase text-slate-600">Actions</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                                        {members.map(m => (
-                                            <tr key={m.id}>
-                                                <td className="px-4 py-3 font-mono text-xs font-black text-indigo-600">{m.token_alias}</td>
-                                                <td className="px-4 py-3 text-[10px] font-bold uppercase">{m.status}</td>
-                                                <td className="px-4 py-3 flex gap-2">
-                                                    <Button size="sm" variant="ghost" className="h-6 text-[9px] uppercase" onClick={() => toggleMemberStatus(m)}>{m.status === 'active' ? 'Revoke' : 'Unlock'}</Button>
-                                                    <Button size="sm" variant="outline" className="h-6 text-[9px] uppercase" onClick={() => { setEditingMember(m); setNewAlias(m.token_alias); }}>Re-Key</Button>
-                                                </td>
-                                            </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
-                            </div>
-                        </div>
+                    {view === 'logs' && (
+                        <Card variant="default" className="border-none shadow-md animate-in fade-in duration-500">
+                            <CardHeader>
+                                <CardTitle>Clinical Encounter Logs</CardTitle>
+                                <CardDescription>Historical record of all quick notes and brief interactions.</CardDescription>
+                            </CardHeader>
+                            <CardContent>
+                                <Suspense fallback={<FeatureLoading />}>
+                                    <EncounterLogs />
+                                </Suspense>
+                            </CardContent>
+                        </Card>
+                    )}
+
+                    {view === 'analytics' && (
+                        <Suspense fallback={<FeatureLoading />}>
+                            <AnalyticsDashboard />
+                        </Suspense>
+                    )}
+                    {view === 'security' && (
+                        <Suspense fallback={<FeatureLoading />}>
+                            <SecuritySettings />
+                        </Suspense>
                     )}
                 </ErrorBoundary>
             </div>
 
-            {editingMember && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-                    <div className="bg-white dark:bg-slate-900 p-6 rounded-lg w-full max-w-sm">
-                        <h3 className="text-xs font-black uppercase">Re-Key</h3>
-                        <form onSubmit={handleRekey} className="mt-4 space-y-4">
-                            <Input value={newAlias} onChange={e => setNewAlias(e.target.value.toUpperCase())} placeholder="NEW-ALIAS" className="font-mono" />
-                            <div className="flex justify-end gap-2">
-                                <Button type="button" variant="ghost" onClick={() => setEditingMember(null)}>Cancel</Button>
-                                <Button type="submit">Save</Button>
+            {/* Availability Generator Modal */}
+            {generatorOpen && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200">
+                    <div className="bg-white dark:bg-slate-900 rounded-xl shadow-2xl w-full max-w-2xl border border-slate-200 dark:border-slate-800 overflow-hidden">
+                        <div className="p-6 border-b border-slate-200 dark:border-slate-800 flex justify-between items-center bg-slate-50 dark:bg-slate-950">
+                            <div>
+                                <h3 className="text-lg font-black text-slate-900 dark:text-white uppercase tracking-tight">Availability Generator</h3>
+                                <p className="text-xs text-slate-500 font-medium">Bulk create slots for your schedule</p>
                             </div>
-                        </form>
+                            <button onClick={() => setGeneratorOpen(false)} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200">
+                                <X className="w-5 h-5" />
+                            </button>
+                        </div>
+                        <div className="p-6 space-y-6 max-h-[70vh] overflow-y-auto">
+                            <form id="gen-form" onSubmit={handleGenerate} className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                <div className="space-y-2">
+                                    <label className="text-[10px] uppercase font-black text-slate-500 tracking-widest">Date Range</label>
+                                    <div className="grid grid-cols-2 gap-2">
+                                        <Input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} className="bg-white dark:bg-slate-950" required />
+                                        <Input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} className="bg-white dark:bg-slate-950" required />
+                                    </div>
+                                </div>
+                                <div className="space-y-4">
+                                    <div className="flex items-center gap-2 mb-2">
+                                        <input
+                                            type="checkbox"
+                                            id="blockMode"
+                                            checked={isBlockMode}
+                                            onChange={(e) => setIsBlockMode(e.target.checked)}
+                                            className="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                                        />
+                                        <label htmlFor="blockMode" className="text-xs font-bold text-slate-700 dark:text-slate-300 select-none cursor-pointer">
+                                            Block Out Time (Unavailable)
+                                        </label>
+                                    </div>
+
+                                    {!isBlockMode ? (
+                                        <div className="space-y-2 animate-in fade-in slide-in-from-top-2 duration-200">
+                                            <label className="text-[10px] uppercase font-black text-slate-500 tracking-widest">Daily Hours</label>
+                                            <div className="grid grid-cols-2 gap-2">
+                                                <Input type="time" value={startTime} onChange={e => setStartTime(e.target.value)} className="bg-white dark:bg-slate-950" required />
+                                                <Input type="time" value={endTime} onChange={e => setEndTime(e.target.value)} className="bg-white dark:bg-slate-950" required />
+                                            </div>
+                                        </div>
+                                    ) : (
+                                        <div className="space-y-2 animate-in fade-in slide-in-from-top-2 duration-200">
+                                            <label className="text-[10px] uppercase font-black text-slate-500 tracking-widest">Block Time</label>
+                                            <div className="grid grid-cols-2 gap-2">
+                                                <Input type="time" value={blockStartTime} onChange={e => setBlockStartTime(e.target.value)} className="bg-white dark:bg-slate-950" required />
+                                                <Input type="time" value={blockEndTime} onChange={e => setBlockEndTime(e.target.value)} className="bg-white dark:bg-slate-950" required />
+                                            </div>
+                                            <Input
+                                                placeholder="Reason (e.g. Lunch, Admin)"
+                                                value={blockReason}
+                                                onChange={e => setBlockReason(e.target.value)}
+                                                className="bg-white dark:bg-slate-950"
+                                            />
+                                        </div>
+                                    )}
+                                </div>
+                            </form>
+                        </div>
+                        <div className="p-6 border-t border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 flex justify-end gap-3">
+                            <Button type="button" variant="ghost" onClick={() => setGeneratorOpen(false)}>Cancel</Button>
+                            <Button form="gen-form" type="submit" isLoading={genLoading}>
+                                {isBlockMode ? 'Add Block' : 'Generate Slots'}
+                            </Button>
+                        </div>
                     </div>
                 </div>
             )}
-            <Toaster richColors position="top-right" />
-        </div>
-    );
-}
 
-function cn(...inputs: any[]) {
-    return inputs.filter(Boolean).join(' ');
+            {/* Clear Modal */}
+            {clearOpen && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200">
+                    <div className="bg-white dark:bg-slate-900 rounded-xl shadow-2xl w-full max-w-md border border-slate-200 dark:border-slate-800">
+                        <div className="p-6 border-b border-slate-200 dark:border-slate-800">
+                            <h3 className="text-lg font-black text-red-600 uppercase tracking-tight flex items-center gap-2">
+                                <ShieldAlert className="w-5 h-5" />
+                                Clear Schedule
+                            </h3>
+                        </div>
+                        <div className="p-6 space-y-4">
+                            <p className="text-sm text-slate-600 dark:text-slate-300 font-medium">
+                                Define the range to clear. By default, this only removes <span className="text-indigo-600 font-bold">OPEN</span> slots.
+                            </p>
+                            <form id="clear-form" onSubmit={handleClear} className="space-y-4 bg-slate-50 dark:bg-slate-950 p-4 rounded-lg">
+                                <div className="grid grid-cols-2 gap-2">
+                                    <div className="space-y-1">
+                                        <label className="text-[10px] uppercase font-black text-slate-500">From</label>
+                                        <Input type="date" value={clearStart} onChange={e => setClearStart(e.target.value)} required />
+                                    </div>
+                                    <div className="space-y-1">
+                                        <label className="text-[10px] uppercase font-black text-slate-500">To</label>
+                                        <Input type="date" value={clearEnd} onChange={e => setClearEnd(e.target.value)} required />
+                                    </div>
+                                </div>
+                                <div className="flex items-center gap-3 pt-2">
+                                    <input
+                                        type="checkbox"
+                                        id="cleanBooked"
+                                        checked={cleanBooked}
+                                        onChange={e => setCleanBooked(e.target.checked)}
+                                        className="w-4 h-4 rounded border-red-300 text-red-600 focus:ring-red-500"
+                                    />
+                                    <label htmlFor="cleanBooked" className="text-xs font-bold text-red-600 select-none cursor-pointer">
+                                        ALSO CANCEL BOOKED APPOINTMENTS
+                                    </label>
+                                </div>
+                            </form>
+                        </div>
+                        <div className="p-6 border-t border-slate-200 dark:border-slate-800 flex justify-end gap-3">
+                            <Button variant="ghost" onClick={() => setClearOpen(false)}>Cancel</Button>
+                            <Button form="clear-form" type="submit" variant="destructive" isLoading={genLoading}>
+                                Confirm Clear
+                            </Button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            <QuickNoteModal isOpen={quickNoteOpen} onClose={() => setQuickNoteOpen(false)} />
+            <Toaster position="top-right" />
+        </DashboardLayout>
+    );
 }

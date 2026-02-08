@@ -34,27 +34,44 @@ registerRoute(
     })
 );
 
-// 5. Cache Supabase GET Requests (Offline Readiness)
+// 5. Cache Supabase GET Requests (Offline Readiness - List Views)
 registerRoute(
     ({ url, request }) =>
         url.pathname.startsWith('/rest/v1/') &&
         request.method === 'GET',
     new NetworkFirst({
         cacheName: 'supabase-api-cache',
-        networkTimeoutSeconds: 3, // Fallback to cache if network is slow
+        networkTimeoutSeconds: 3, // Fallback to cache if network is slow/unstable
         plugins: [
             new CacheableResponsePlugin({
                 statuses: [0, 200],
             }),
             new ExpirationPlugin({
-                maxEntries: 100,
-                maxAgeSeconds: 60 * 60 * 24, // 24 Hours
+                maxEntries: 150, // Increased capacity
+                maxAgeSeconds: 60 * 60 * 24 * 7, // 7 Days retention for extended field ops
             }),
         ],
     })
 );
 
-// 6. Cache Google Fonts
+// 6. Cache Supabase Storage (Images/Avatars - Immutable-ish)
+registerRoute(
+    ({ url }) => url.pathname.startsWith('/storage/v1/object/'),
+    new CacheFirst({
+        cacheName: 'supabase-storage-cache',
+        plugins: [
+            new CacheableResponsePlugin({
+                statuses: [0, 200],
+            }),
+            new ExpirationPlugin({
+                maxEntries: 50,
+                maxAgeSeconds: 60 * 60 * 24 * 30, // 30 Days
+            }),
+        ],
+    })
+);
+
+// 7. Cache Google Fonts
 registerRoute(
     ({ url }) => url.origin === 'https://fonts.googleapis.com' || url.origin === 'https://fonts.gstatic.com',
     new CacheFirst({

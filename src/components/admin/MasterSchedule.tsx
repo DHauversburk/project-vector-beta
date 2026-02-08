@@ -27,10 +27,10 @@ export default function MasterSchedule({ actionContext }: MasterScheduleProps) {
     const fetchSchedule = async () => {
         try {
             const data = await api.getAllAppointments();
-            // @ts-ignore - Supabase types are tricky with joins
+            // @ts-expect-error - Event type mismatch with library definition - Supabase types are tricky with joins
             setAppointments(data);
-        } catch (err: any) {
-            setError(err.message);
+        } catch (err) {
+            setError(err instanceof Error ? err.message : 'Failed to fetch schedule');
         } finally {
             setLoading(false);
         }
@@ -45,10 +45,10 @@ export default function MasterSchedule({ actionContext }: MasterScheduleProps) {
 
         if (newStatus) {
             const originalStatus = apt.status;
-            setAppointments(prev => prev.map(a => a.id === apt.id ? { ...a, status: newStatus as any } : a));
+            setAppointments(prev => prev.map(a => a.id === apt.id ? { ...a, status: newStatus as AppointmentWithDetails['status'] } : a));
 
             try {
-                await api.updateAppointmentStatus(apt.id, newStatus as any);
+                await api.updateAppointmentStatus(apt.id, newStatus as AppointmentWithDetails['status']);
             } catch (err) {
                 setAppointments(prev => prev.map(a => a.id === apt.id ? { ...a, status: originalStatus } : a));
                 console.error('Failed to update status', err);
@@ -123,8 +123,8 @@ export default function MasterSchedule({ actionContext }: MasterScheduleProps) {
                             >
                                 {/* Subtle Status Bar */}
                                 <div className={`absolute top-0 left-0 right-0 h-[3px] ${apt.status === 'confirmed' ? 'bg-indigo-500' :
-                                        apt.status === 'completed' ? 'bg-emerald-500' :
-                                            apt.status === 'cancelled' ? 'bg-red-400' : 'bg-slate-200'
+                                    apt.status === 'completed' ? 'bg-emerald-500' :
+                                        apt.status === 'cancelled' ? 'bg-red-400' : 'bg-slate-200'
                                     }`}></div>
 
                                 <div className="flex justify-between items-start mb-1.5">
@@ -148,7 +148,7 @@ export default function MasterSchedule({ actionContext }: MasterScheduleProps) {
                                         {apt.provider?.service_type || 'GENERAL'}
                                     </div>
                                     <div className={`text-[11px] font-bold truncate leading-tight ${apt.status === 'cancelled' ? 'text-red-700' :
-                                            apt.member?.token_alias ? 'text-indigo-700' : 'text-slate-400'
+                                        apt.member?.token_alias ? 'text-indigo-700' : 'text-slate-400'
                                         }`}>
                                         {apt.status === 'cancelled' ? 'RESTRICTED' : apt.member?.token_alias || 'AVAILABLE'}
                                     </div>

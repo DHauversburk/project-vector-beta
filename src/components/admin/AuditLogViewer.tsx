@@ -1,19 +1,15 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { api } from '../../lib/api';
 import { AlertCircle, AlertTriangle, Info, ShieldAlert, RefreshCw, Filter, Code } from 'lucide-react';
 import { format } from 'date-fns';
 
-type AuditLog = {
-    id: string;
-    user_id: string;
-    token_alias: string;
-    role: string;
-    action_type: string;
-    description: string;
-    metadata: any;
-    severity: 'INFO' | 'WARN' | 'ERROR' | 'CRITICAL';
-    created_at: string;
-};
+import type { AuditLog } from '../../lib/api/types';
+
+interface AuditMetadata {
+    role?: string;
+    token_alias?: string;
+    [key: string]: unknown;
+}
 
 export default function AuditLogViewer() {
     const [logs, setLogs] = useState<AuditLog[]>([]);
@@ -22,7 +18,7 @@ export default function AuditLogViewer() {
     const [selectedSeverity, setSelectedSeverity] = useState<string>('');
     const [expandedLogId, setExpandedLogId] = useState<string | null>(null);
 
-    const loadLogs = async () => {
+    const loadLogs = useCallback(async () => {
         setLoading(true);
         try {
             const data = await api.getAuditLogs({
@@ -36,11 +32,11 @@ export default function AuditLogViewer() {
         } finally {
             setLoading(false);
         }
-    };
+    }, [selectedType, selectedSeverity]);
 
     useEffect(() => {
         loadLogs();
-    }, [selectedType, selectedSeverity]);
+    }, [loadLogs]);
 
     const getSeverityIcon = (severity: string) => {
         switch (severity) {
@@ -140,8 +136,8 @@ export default function AuditLogViewer() {
                                             </div>
                                         </td>
                                         <td className="px-4 py-3 font-bold text-slate-700 dark:text-slate-200">{log.action_type}</td>
-                                        <td className="px-4 py-3 text-slate-500 dark:text-slate-400" title={log.role}>
-                                            {log.token_alias || 'SYSTEM'}
+                                        <td className="px-4 py-3 text-slate-500 dark:text-slate-400" title={(log.metadata as AuditMetadata)?.role || 'Unknown Role'}>
+                                            {(log.metadata as AuditMetadata)?.token_alias || log.actor_id || 'SYSTEM'}
                                         </td>
                                         <td className="px-4 py-3 text-slate-600 dark:text-slate-300 truncate max-w-[300px]">
                                             {log.description}

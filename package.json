@@ -1,7 +1,7 @@
 {
   "name": "project_vector",
   "private": true,
-  "version": "0.0.0",
+  "version": "2.0.0-beta",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -10,9 +10,10 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@supabase/supabase-js": "^2.87.0",
+    "@supabase/supabase-js": "^2.39.0",
     "clsx": "^2.1.1",
     "date-fns": "^4.1.0",
+    "idb": "^8.0.3",
     "lucide-react": "^0.556.0",
     "qrcode.react": "^4.2.0",
     "react": "^19.2.0",

@@ -22,6 +22,22 @@ export class ErrorBoundary extends Component<Props, State> {
 
     public componentDidCatch(error: Error, errorInfo: ErrorInfo) {
         console.error("Uncaught error:", error, errorInfo);
+
+        // Setup local error tracking for Beta 2 review
+        try {
+            const errorLog = JSON.parse(localStorage.getItem('vector_system_errors') || '[]');
+            errorLog.push({
+                timestamp: new Date().toISOString(),
+                message: error.message,
+                stack: error.stack,
+                componentStack: errorInfo.componentStack,
+                url: window.location.href
+            });
+            // Keep only last 20 errors
+            localStorage.setItem('vector_system_errors', JSON.stringify(errorLog.slice(-20)));
+        } catch (e) {
+            console.warn('Failed to persist system error log', e);
+        }
     }
 
     public render() {

@@ -18,7 +18,7 @@ describe('Project Vector Core Logic Verification', () => {
 
     it('Scenario 1: Provider blocks slot, Member sees it blocked', async () => {
         // 1. Login as Provider
-        await supabase.auth.signInWithPassword({ email: 'jameson' });
+        await supabase.auth.signInWithPassword({ email: 'jameson', password: 'password' });
 
         // Verify login
         const { data: { user } } = await supabase.auth.getUser();
@@ -37,7 +37,7 @@ describe('Project Vector Core Logic Verification', () => {
         await supabase.auth.signOut();
 
         // 4. Login as Member
-        await supabase.auth.signInWithPassword({ email: 'ivan' });
+        await supabase.auth.signInWithPassword({ email: 'ivan', password: 'password' });
 
         // 5. Get slots
         // We need to pass the provider ID. Mock defaults to 'mock-provider-jameson'
@@ -57,7 +57,7 @@ describe('Project Vector Core Logic Verification', () => {
 
     it('Scenario 2: Member books slot with Urgent Note, Provider sees badge', async () => {
         // 1. Login as Member
-        await supabase.auth.signInWithPassword({ email: 'ivan' });
+        await supabase.auth.signInWithPassword({ email: 'ivan', password: 'password' });
 
         // 2. Book 11am (slot 2) with Urgent Note
         // This simulates the outcome of rescheduling with a note, or booking new with a note.
@@ -67,7 +67,7 @@ describe('Project Vector Core Logic Verification', () => {
         await supabase.auth.signOut();
 
         // 4. Login Provider
-        const { data: { user: provider } } = await supabase.auth.signInWithPassword({ email: 'jameson' });
+        const { data: { user: provider } } = await supabase.auth.signInWithPassword({ email: 'jameson', password: 'password' });
 
         // 5. Get Schedule
         // Range: Today to +5 days
@@ -86,12 +86,12 @@ describe('Project Vector Core Logic Verification', () => {
 
     it('Scenario 3: Admin sees all appointments', async () => {
         // Setup state: Member books a slot
-        await supabase.auth.signInWithPassword({ email: 'ivan' });
+        await supabase.auth.signInWithPassword({ email: 'ivan', password: 'password' });
         await api.bookSlot('mock-slot-3', 'Routine Checkup');
         await supabase.auth.signOut();
 
         // Login as Admin
-        await supabase.auth.signInWithPassword({ email: 'alex' });
+        await supabase.auth.signInWithPassword({ email: 'alex', password: 'password' });
         const { data: { user } } = await supabase.auth.getUser();
         expect(user!.user_metadata.token_alias).toBe('CMD. ALEX');
 

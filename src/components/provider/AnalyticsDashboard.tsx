@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { api } from '../../lib/api';
+import { api, type Appointment, type NoteStatistics } from '../../lib/api';
 import {
     TrendingUp,
     CheckCircle2,
@@ -12,7 +12,8 @@ import {
     ChevronRight,
     ArrowUp,
     ArrowDown,
-    X
+    X,
+    FileText
 } from 'lucide-react';
 import { AnalyticsHeatmap } from './AnalyticsHeatmap';
 import { format, isAfter, parseISO, isBefore, differenceInDays, startOfWeek, endOfWeek, subWeeks } from 'date-fns';
@@ -83,15 +84,15 @@ const MetricCard: React.FC<MetricCardProps> = ({
     </div>
 );
 
-type DetailModalProps = {
+type DetailModalProps<T> = {
     isOpen: boolean;
     onClose: () => void;
     title: string;
-    data: any[];
-    renderItem: (item: any, index: number) => React.ReactNode;
+    data: T[];
+    renderItem: (item: T, index: number) => React.ReactNode;
 };
 
-const DetailModal: React.FC<DetailModalProps> = ({ isOpen, onClose, title, data, renderItem }) => {
+const DetailModal = <T,>({ isOpen, onClose, title, data, renderItem }: DetailModalProps<T>) => {
     if (!isOpen) return null;
 
     return (
@@ -115,8 +116,22 @@ const DetailModal: React.FC<DetailModalProps> = ({ isOpen, onClose, title, data,
     );
 };
 
+interface FeedbackItem {
+    id: string;
+    appointment_id: string;
+    rating: number;
+    comment: string;
+    created_at: string;
+}
+
+interface AnalyticsData {
+    appointments: Appointment[];
+    feedback: FeedbackItem[];
+    noteStats: NoteStatistics[];
+}
+
 export const AnalyticsDashboard: React.FC = () => {
-    const [data, setData] = useState<any>(null);
+    const [data, setData] = useState<AnalyticsData | null>(null);
     const [loading, setLoading] = useState(true);
     const [favorites, setFavorites] = useState<string[]>(() => {
         const stored = localStorage.getItem('ANALYTICS_FAVORITES');
@@ -126,7 +141,7 @@ export const AnalyticsDashboard: React.FC = () => {
 
     useEffect(() => {
         api.getAnalytics()
-            .then(setData)
+            .then((res: unknown) => setData(res as AnalyticsData))
             .catch(console.error)
             .finally(() => setLoading(false));
     }, []);
@@ -156,19 +171,19 @@ export const AnalyticsDashboard: React.FC = () => {
     const lastWeekStart = subWeeks(weekStart, 1);
     const lastWeekEnd = subWeeks(weekEnd, 1);
 
-    const thisWeekAppts = appointments.filter((a: any) => {
+    const thisWeekAppts = appointments.filter((a: Appointment) => {
         const date = parseISO(a.start_time);
         return isAfter(date, weekStart) && isBefore(date, weekEnd);
     });
 
-    const lastWeekAppts = appointments.filter((a: any) => {
+    const lastWeekAppts = appointments.filter((a: Appointment) => {
         const date = parseISO(a.start_time);
         return isAfter(date, lastWeekStart) && isBefore(date, lastWeekEnd);
     });
 
-    const calculateCompletionRate = (list: any[]) => {
-        const completed = list.filter((a: any) => a.status === 'completed').length;
-        const total = list.filter((a: any) => a.member_id).length;
+    const calculateCompletionRate = (list: Appointment[]) => {
+        const completed = list.filter((a: Appointment) => a.status === 'completed').length;
+        const total = list.filter((a: Appointment) => a.member_id).length;
         return total > 0 ? (completed / total * 100) : 0;
     };
 
@@ -176,20 +191,20 @@ export const AnalyticsDashboard: React.FC = () => {
     const lastWeekCompletionRate = calculateCompletionRate(lastWeekAppts);
     const completionTrend = lastWeekCompletionRate > 0 ? (completionRate - lastWeekCompletionRate) : 0;
 
-    const noShows = thisWeekAppts.filter((a: any) => a.status === 'cancelled').length;
-    const lastWeekNoShows = lastWeekAppts.filter((a: any) => a.status === 'cancelled').length;
+    const noShows = thisWeekAppts.filter((a: Appointment) => a.status === 'cancelled').length;
+    const lastWeekNoShows = lastWeekAppts.filter((a: Appointment) => a.status === 'cancelled').length;
     const noShowTrend = (noShows - lastWeekNoShows);
 
     const stats = {
         weeklyTotal: thisWeekAppts.length,
-        completed: thisWeekAppts.filter((a: any) => a.status === 'completed').length,
+        completed: thisWeekAppts.filter((a: Appointment) => a.status === 'completed').length,
         completionRate: completionRate,
         noShows: noShows,
-        upcoming: thisWeekAppts.filter((a: any) => isAfter(parseISO(a.start_time), now) && a.status !== 'cancelled' && a.member_id).length,
-        openSlots: thisWeekAppts.filter((a: any) => !a.member_id && !a.is_booked && isAfter(parseISO(a.start_time), now)).length,
-        avgRating: feedback.length > 0 ? (feedback.reduce((acc: number, f: any) => acc + f.rating, 0) / feedback.length) : 0,
-        utilization: thisWeekAppts.length > 0 ? (thisWeekAppts.filter((a: any) => a.member_id).length / thisWeekAppts.length * 100) : 0,
-        uniquePatients: new Set(appointments.filter((a: any) => a.member_id && a.status === 'completed').map((a: any) => a.member_id)).size
+        upcoming: thisWeekAppts.filter((a: Appointment) => isAfter(parseISO(a.start_time), now) && a.status !== 'cancelled' && a.member_id).length,
+        openSlots: thisWeekAppts.filter((a: Appointment) => !a.member_id && !a.is_booked && isAfter(parseISO(a.start_time), now)).length,
+        avgRating: feedback.length > 0 ? (feedback.reduce((acc: number, f: FeedbackItem) => acc + f.rating, 0) / feedback.length) : 0,
+        utilization: thisWeekAppts.length > 0 ? (thisWeekAppts.filter((a: Appointment) => a.member_id).length / thisWeekAppts.length * 100) : 0,
+        uniquePatients: new Set(appointments.filter((a: Appointment) => a.member_id && a.status === 'completed').map((a: Appointment) => a.member_id)).size
     };
 
     const warnings: string[] = [];
@@ -318,12 +333,44 @@ export const AnalyticsDashboard: React.FC = () => {
                 <AnalyticsHeatmap appointments={appointments} />
             </div>
 
+            {/* Clinical Analytics Section */}
+            {data?.noteStats && data.noteStats.length > 0 && (
+                <div className="bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-800 p-6">
+                    <h3 className="text-sm font-black uppercase tracking-widest text-slate-900 dark:text-white mb-4 flex items-center gap-2">
+                        <FileText className="w-4 h-4" /> Clinical Documentation
+                    </h3>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        <div className="p-4 bg-indigo-50 dark:bg-indigo-900/10 rounded-lg border border-indigo-100 dark:border-indigo-900/20">
+                            <div className="text-xs font-bold text-indigo-800 dark:text-indigo-300 mb-1">Total Notes (Current Period)</div>
+                            <div className="text-2xl font-black text-indigo-600 dark:text-indigo-400">
+                                {data.noteStats[0].total_encounters}
+                            </div>
+                            <div className="text-[10px] text-indigo-600/70 dark:text-indigo-400/70 mt-1">
+                                {data.noteStats[0].period}
+                            </div>
+                        </div>
+                        <div className="p-4 bg-emerald-50 dark:bg-emerald-900/10 rounded-lg border border-emerald-100 dark:border-emerald-900/20">
+                            <div className="text-xs font-bold text-emerald-800 dark:text-emerald-300 mb-1">Unique Patients Documented</div>
+                            <div className="text-2xl font-black text-emerald-600 dark:text-emerald-400">
+                                {data.noteStats[0].unique_patients}
+                            </div>
+                        </div>
+                        <div className="p-4 bg-amber-50 dark:bg-amber-900/10 rounded-lg border border-amber-100 dark:border-amber-900/20">
+                            <div className="text-xs font-bold text-amber-800 dark:text-amber-300 mb-1">Pending Actions</div>
+                            <div className="text-2xl font-black text-amber-600 dark:text-amber-400">
+                                {data.noteStats[0].requires_action_count}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             <DetailModal
                 isOpen={activeModal === 'completed'}
                 onClose={() => setActiveModal(null)}
                 title="Completed Appointments"
-                data={appointments.filter((a: any) => a.status === 'completed').slice(-20)}
-                renderItem={(item, idx) => (
+                data={appointments.filter((a: Appointment) => a.status === 'completed').slice(-20)}
+                renderItem={(item: Appointment, idx) => (
                     <div key={idx} className="flex justify-between items-center p-3 bg-slate-50 dark:bg-slate-800 rounded-lg">
                         <div>
                             <div className="text-xs font-bold text-slate-700 dark:text-slate-300">
@@ -340,8 +387,8 @@ export const AnalyticsDashboard: React.FC = () => {
                 isOpen={activeModal === 'noShows'}
                 onClose={() => setActiveModal(null)}
                 title="Cancelled Appointments"
-                data={appointments.filter((a: any) => a.status === 'cancelled').slice(-20)}
-                renderItem={(item, idx) => (
+                data={appointments.filter((a: Appointment) => a.status === 'cancelled').slice(-20)}
+                renderItem={(item: Appointment, idx) => (
                     <div key={idx} className="flex justify-between items-center p-3 bg-red-50 dark:bg-red-950/50 rounded-lg">
                         <div>
                             <div className="text-xs font-bold text-slate-700 dark:text-slate-300">
@@ -358,8 +405,8 @@ export const AnalyticsDashboard: React.FC = () => {
                 isOpen={activeModal === 'upcoming'}
                 onClose={() => setActiveModal(null)}
                 title="Upcoming Appointments"
-                data={appointments.filter((a: any) => isAfter(parseISO(a.start_time), now) && a.member_id).slice(0, 20)}
-                renderItem={(item, idx) => (
+                data={appointments.filter((a: Appointment) => isAfter(parseISO(a.start_time), now) && a.member_id).slice(0, 20)}
+                renderItem={(item: Appointment, idx) => (
                     <div key={idx} className="flex justify-between items-center p-3 bg-blue-50 dark:bg-blue-950/50 rounded-lg">
                         <div>
                             <div className="text-xs font-bold text-slate-700 dark:text-slate-300">

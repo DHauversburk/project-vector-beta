@@ -1,5 +1,6 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
+import { api } from '../lib/api';
 import {
     Activity,
     FileText,
@@ -12,17 +13,20 @@ import {
     ChevronDown,
     Lock,
     Menu,
-    X
+    X,
+    MessageSquare
 } from 'lucide-react';
 import { Button } from '../components/ui/Button';
 import TokenGenerator from '../components/admin/TokenGenerator';
 import MasterSchedule from '../components/admin/MasterSchedule';
 import { SystemMaintenance } from '../components/admin/SystemMaintenance';
 import AuditLogViewer from '../components/admin/AuditLogViewer';
+import { FeedbackViewer } from '../components/admin/FeedbackViewer';
+import { WelcomeModal } from '../components/onboarding/WelcomeModal';
 import { useTheme } from '../contexts/ThemeContext';
 
 type ActionContext = 'view' | 'block' | 'unblock' | 'override';
-type DashboardView = 'schedule' | 'tokens' | 'logs' | 'maintenance';
+type DashboardView = 'schedule' | 'tokens' | 'logs' | 'maintenance' | 'feedback';
 
 export default function AdminDashboard() {
     const { signOut } = useAuth(); // Keeping 'user' as it might be used later or for auth checks
@@ -31,16 +35,22 @@ export default function AdminDashboard() {
     const [currentView, setCurrentView] = useState<DashboardView>('schedule');
     const [isContextOpen, setIsContextOpen] = useState(false);
     const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+    const [stats, setStats] = useState({ total_users: 0, active_appointments: 0 });
+
+    useEffect(() => {
+        api.getSystemStats().then(s => setStats(s)).catch(console.error);
+    }, []);
 
     return (
         <div className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 font-sans selection:bg-indigo-100 pb-12 transition-colors">
+            <WelcomeModal role="admin" userName="System Administrator" />
             {/* Enterprise Header */}
             <header className="sticky top-0 z-50 border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm transition-colors">
                 <div className="flex h-14 items-center px-4 md:px-6 gap-4">
                     {/* Brand / Logo */}
                     <div className="flex items-center gap-3 mr-4">
                         <img src="/pwa-192x192.png" alt="Vector" className="w-8 h-8 rounded shrink-0" />
-                        <span className="text-lg font-black tracking-tight text-slate-900 dark:text-white">PROJECT VECTOR</span>
+                        <span className="text-lg font-black tracking-tight text-slate-900 dark:text-white" data-tour="dashboard-title">PROJECT VECTOR</span>
                     </div>
 
                     {/* Operational Breadcrumb */}
@@ -124,6 +134,7 @@ export default function AdminDashboard() {
                         <Button variant={currentView === 'tokens' ? 'secondary' : 'ghost'} size="sm" onClick={() => { setCurrentView('tokens'); setMobileMenuOpen(false); }} className="justify-start h-10 text-xs font-black uppercase tracking-wider"> <FileText className="w-4 h-4 mr-3" /> Token Station </Button>
                         <Button variant={currentView === 'logs' ? 'secondary' : 'ghost'} size="sm" onClick={() => { setCurrentView('logs'); setMobileMenuOpen(false); }} className="justify-start h-10 text-xs font-black uppercase tracking-wider"> <AlertCircle className="w-4 h-4 mr-3" /> Audit Logs </Button>
                         <Button variant={currentView === 'maintenance' ? 'secondary' : 'ghost'} size="sm" onClick={() => { setCurrentView('maintenance'); setMobileMenuOpen(false); }} className="justify-start h-10 text-xs font-black uppercase tracking-wider"> <Database className="w-4 h-4 mr-3" /> System Hygiene </Button>
+                        <Button variant={currentView === 'feedback' ? 'secondary' : 'ghost'} size="sm" onClick={() => { setCurrentView('feedback'); setMobileMenuOpen(false); }} className="justify-start h-10 text-xs font-black uppercase tracking-wider"> <MessageSquare className="w-4 h-4 mr-3" /> Beta Feedback </Button>
                         <div className="h-px bg-slate-100 dark:bg-slate-800 my-1" />
                         <Button variant="ghost" size="sm" onClick={signOut} className="justify-start h-10 text-xs font-black uppercase tracking-wider text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-900/20"> <LogOut className="w-4 h-4 mr-3" /> Logout </Button>
                     </div>
@@ -146,6 +157,7 @@ export default function AdminDashboard() {
                         <button
                             onClick={() => setCurrentView('tokens')}
                             className={`w-full flex items-center px-3 py-2 text-xs font-bold rounded-md transition-colors ${currentView === 'tokens' ? 'text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-900/30 border-r-2 border-indigo-600 dark:border-indigo-400 rounded-r-none' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800'}`}
+                            data-tour="nav-tokens"
                         >
                             <FileText className="w-3.5 h-3.5 mr-2" />
                             Token Station
@@ -153,6 +165,7 @@ export default function AdminDashboard() {
                         <button
                             onClick={() => setCurrentView('logs')}
                             className={`w-full flex items-center px-3 py-2 text-xs font-bold rounded-md transition-colors ${currentView === 'logs' ? 'text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-900/30 border-r-2 border-indigo-600 dark:border-indigo-400 rounded-r-none' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800'}`}
+                            data-tour="nav-logs"
                         >
                             <AlertCircle className="w-3.5 h-3.5 mr-2" />
                             Audit Logs
@@ -164,6 +177,13 @@ export default function AdminDashboard() {
                             <Database className="w-3.5 h-3.5 mr-2" />
                             System Hygiene
                         </button>
+                        <button
+                            onClick={() => setCurrentView('feedback')}
+                            className={`w-full flex items-center px-3 py-2 text-xs font-bold rounded-md transition-colors ${currentView === 'feedback' ? 'text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-900/30 border-r-2 border-indigo-600 dark:border-indigo-400 rounded-r-none' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800'}`}
+                        >
+                            <MessageSquare className="w-3.5 h-3.5 mr-2" />
+                            Beta Feedback
+                        </button>
                     </div>
 
                     {/* Operational Awareness Widget */}
@@ -171,12 +191,12 @@ export default function AdminDashboard() {
                         <div className="text-[10px] uppercase text-slate-400 font-black mb-3 px-2 tracking-widest">System Health</div>
                         <div className="space-y-2">
                             <div className="flex justify-between items-center px-2">
-                                <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400">ACTIVE NODES</span>
-                                <span className="text-xs font-black text-indigo-600 dark:text-indigo-400">12</span>
+                                <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400">TOTAL USERS</span>
+                                <span className="text-xs font-black text-indigo-600 dark:text-indigo-400">{stats.total_users || '-'}</span>
                             </div>
                             <div className="flex justify-between items-center px-2">
-                                <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400">IO LOAD</span>
-                                <span className="text-xs font-black text-emerald-600 dark:text-emerald-400">4.2%</span>
+                                <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400">ACTIVE VISITS</span>
+                                <span className="text-xs font-black text-emerald-600 dark:text-emerald-400">{stats.active_appointments || 0}</span>
                             </div>
                         </div>
                     </div>
@@ -199,6 +219,12 @@ export default function AdminDashboard() {
                     )}
 
                     {currentView === 'maintenance' && <SystemMaintenance />}
+
+                    {currentView === 'feedback' && (
+                        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg p-6 animate-in fade-in duration-300 shadow-sm transition-colors">
+                            <FeedbackViewer />
+                        </div>
+                    )}
                 </div>
             </main>
         </div>

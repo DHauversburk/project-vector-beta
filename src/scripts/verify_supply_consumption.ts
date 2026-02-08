@@ -18,7 +18,7 @@ async function runVerification() {
 
     // 2. Find an Open Slot (Supply)
     // We expect slots from previous generator test. If none, create one.
-    let { data: slots } = await supabase.from('appointments')
+    const { data: slots } = await supabase.from('appointments')
         .select('*')
         .eq('provider_id', providerId)
         .is('member_id', null) // Open

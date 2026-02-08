@@ -21,7 +21,7 @@ describe('10 High Complexity Verify Stories', () => {
         localStorage.clear();
         vi.restoreAllMocks();
         // Reset Mock Session for clean state
-        (supabase as any).auth.signOut();
+        (supabase as unknown as { auth: { signOut: () => void } }).auth.signOut();
     });
 
     afterEach(async () => {
@@ -31,13 +31,13 @@ describe('10 High Complexity Verify Stories', () => {
     it('1. The Waitlist Conflict: Provider block beats Member book', async () => {
         // Setup: Slot exists logic (virtual).
         // Provider Blocks 09:00
-        await supabase.auth.signInWithPassword({ email: 'jameson' });
+        await supabase.auth.signInWithPassword({ email: 'jameson', password: 'mock' });
         const block = await api.toggleSlotBlock('mock-slot-0', true); // 09:00
         expect(block.status).toBe('blocked');
         await supabase.auth.signOut();
 
         // Member tries to see it
-        await supabase.auth.signInWithPassword({ email: 'ivan' });
+        await supabase.auth.signInWithPassword({ email: 'ivan', password: 'mock' });
         const slots = await api.getProviderOpenSlots('mock-provider-jameson');
         const blockedSlot = slots.find(s => s.id === 'mock-slot-0');
         expect(blockedSlot).toBeUndefined(); // Should be filtered out
@@ -45,30 +45,30 @@ describe('10 High Complexity Verify Stories', () => {
 
     it('2. The Emergency Override: Provider deletes active appointment', async () => {
         // Member books
-        await supabase.auth.signInWithPassword({ email: 'ivan' });
+        await supabase.auth.signInWithPassword({ email: 'ivan', password: 'mock' });
         const appt = await api.bookSlot('mock-slot-1', 'Standard');
         await supabase.auth.signOut();
 
         // Provider deletes
-        await supabase.auth.signInWithPassword({ email: 'jameson' });
+        await supabase.auth.signInWithPassword({ email: 'jameson', password: 'mock' });
         await api.deleteAppointment(appt.id);
 
         // Member checks
         await supabase.auth.signOut();
-        await supabase.auth.signInWithPassword({ email: 'ivan' });
+        await supabase.auth.signInWithPassword({ email: 'ivan', password: 'mock' });
         const myAppts = await api.getMyAppointments();
         expect(myAppts.find(a => a.id === appt.id)).toBeUndefined();
     });
 
     it('3. The Urgent Cascade: Metadata lifecycle', async () => {
         // Member books Urgent
-        await supabase.auth.signInWithPassword({ email: 'ivan' });
+        await supabase.auth.signInWithPassword({ email: 'ivan', password: 'mock' });
         const appt = await api.bookSlot('mock-slot-2', 'Urgent Pain');
         const apptId = appt.id;
         await supabase.auth.signOut();
 
         // Provider sees Urgent
-        await supabase.auth.signInWithPassword({ email: 'jameson' });
+        await supabase.auth.signInWithPassword({ email: 'jameson', password: 'mock' });
         const schedule = await api.getProviderSchedule('mock-provider-jameson', '2020-01-01', '2030-01-01');
         const providerView = schedule.find(a => a.id === apptId);
         expect(providerView?.notes).toContain('Urgent');
@@ -78,26 +78,26 @@ describe('10 High Complexity Verify Stories', () => {
         await supabase.auth.signOut();
 
         // Member sees history
-        await supabase.auth.signInWithPassword({ email: 'ivan' });
+        await supabase.auth.signInWithPassword({ email: 'ivan', password: 'mock' });
         const myHistory = await api.getMyAppointments();
         const myCompleted = myHistory.find(a => a.id === apptId);
         expect(myCompleted?.status).toBe('completed');
     });
 
     it('4. The Admin Ghost: Admin books on behalf of Member', async () => {
-        await supabase.auth.signInWithPassword({ email: 'alex' });
+        await supabase.auth.signInWithPassword({ email: 'alex', password: 'mock' });
         const newAppt = await api.directBook('mock-slot-3', 'mock-user-123'); // assigning to Ivan
         expect(newAppt.is_booked).toBe(true);
         await supabase.auth.signOut();
 
         // Ivan logs in
-        await supabase.auth.signInWithPassword({ email: 'ivan' });
+        await supabase.auth.signInWithPassword({ email: 'ivan', password: 'mock' });
         const myAppts = await api.getMyAppointments();
         expect(myAppts.some(a => a.id === newAppt.id)).toBe(true);
     });
 
     it('5. The Monday Blackout: Bulk generate and block', async () => {
-        await supabase.auth.signInWithPassword({ email: 'jameson' });
+        await supabase.auth.signInWithPassword({ email: 'jameson', password: 'mock' });
         // Generate slots for a specific Monday
         const monday = '2025-10-20'; // A Monday
         // Pass all days [0,1,2,3,4,5,6] to avoid timezone day-index mismatch in test env
@@ -110,7 +110,7 @@ describe('10 High Complexity Verify Stories', () => {
         await supabase.auth.signOut();
 
         // Member checks
-        await supabase.auth.signInWithPassword({ email: 'ivan' });
+        await supabase.auth.signInWithPassword({ email: 'ivan', password: 'mock' });
         const slots = await api.getProviderOpenSlots('mock-provider-jameson', monday);
 
         console.log('DEBUG: Visible Slots:', slots.map(s => s.start_time));
@@ -121,7 +121,7 @@ describe('10 High Complexity Verify Stories', () => {
 
     it('6. The Token Swap: Session Isolation', async () => {
         // Login as Ivan (Member)
-        await supabase.auth.signInWithPassword({ email: 'ivan' });
+        await supabase.auth.signInWithPassword({ email: 'ivan', password: 'mock' });
         const { data: { user: ivan } } = await supabase.auth.getUser();
         expect(ivan!.email).toContain('ivan');
 
@@ -129,7 +129,7 @@ describe('10 High Complexity Verify Stories', () => {
         await supabase.auth.signOut();
 
         // Login as Jameson (Provider)
-        await supabase.auth.signInWithPassword({ email: 'jameson' });
+        await supabase.auth.signInWithPassword({ email: 'jameson', password: 'mock' });
         const { data: { user: jameson } } = await supabase.auth.getUser();
         expect(jameson!.email).toContain('jameson');
         expect(jameson!.id).not.toBe(ivan!.id);
@@ -140,7 +140,7 @@ describe('10 High Complexity Verify Stories', () => {
     });
 
     it('7. The Double Dip: Multiple Bookings', async () => {
-        await supabase.auth.signInWithPassword({ email: 'ivan' });
+        await supabase.auth.signInWithPassword({ email: 'ivan', password: 'mock' });
         await api.bookSlot('mock-slot-0', 'First');
         await api.bookSlot('mock-slot-1', 'Second');
 
@@ -150,7 +150,7 @@ describe('10 High Complexity Verify Stories', () => {
 
     it('8. The Refresh Resilience: Persistence via LocalStorage', async () => {
         // Login and Book
-        await supabase.auth.signInWithPassword({ email: 'ivan' });
+        await supabase.auth.signInWithPassword({ email: 'ivan', password: 'mock' });
         await api.bookSlot('mock-slot-0', 'Persistent');
 
         // "Refresh" -> Logic: Reset API memory, load from LocalStorage
@@ -166,7 +166,7 @@ describe('10 High Complexity Verify Stories', () => {
 
     it('9. The Link Hunter: Protected Logic Access', async () => {
         // Verify Member cannot perfom Admin actions (at API level)
-        await supabase.auth.signInWithPassword({ email: 'ivan' });
+        await supabase.auth.signInWithPassword({ email: 'ivan', password: 'mock' });
 
         // Try to access Audit Logs (Admin only usually, though API might not restrict mock)
         // In a real app RLS blocks this. In mock, we check if logic allows.
@@ -183,22 +183,22 @@ describe('10 High Complexity Verify Stories', () => {
 
     it('10. The Full Cycle: End-to-End', async () => {
         // 1. Register
-        const { data: { user } } = await supabase.auth.signUp({ email: 'newrecruit@mil.mail', options: { data: { token_alias: 'ROOKIE' } } });
+        const { data: { user } } = await supabase.auth.signUp({ email: 'newrecruit@mil.mail', password: 'mock', options: { data: { token_alias: 'ROOKIE' } } });
         expect(user).toBeDefined();
 
         // 2. Book
-        await supabase.auth.signInWithPassword({ email: 'newrecruit@mil.mail' });
+        await supabase.auth.signInWithPassword({ email: 'newrecruit@mil.mail', password: 'mock' });
         const appt = await api.bookSlot('mock-slot-0', 'Checkup');
         expect(appt.status).toBe('confirmed');
         await supabase.auth.signOut();
 
         // 3. Provider Completes
-        await supabase.auth.signInWithPassword({ email: 'jameson' });
+        await supabase.auth.signInWithPassword({ email: 'jameson', password: 'mock' });
         await api.updateAppointmentStatus(appt.id, 'completed');
         await supabase.auth.signOut();
 
         // 4. Feedback
-        await supabase.auth.signInWithPassword({ email: 'newrecruit@mil.mail' });
+        await supabase.auth.signInWithPassword({ email: 'newrecruit@mil.mail', password: 'mock' });
         const res = await api.submitFeedback(appt.id, 5, 'Great servce');
         expect(res.success).toBe(true);
     });

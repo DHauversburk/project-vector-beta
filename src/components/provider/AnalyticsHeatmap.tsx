@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useCallback } from 'react';
 import type { Appointment } from '../../lib/api';
 import { format, startOfWeek, addDays, isSameDay, parseISO } from 'date-fns';
 
@@ -13,7 +13,7 @@ export const AnalyticsHeatmap: React.FC<HeatmapProps> = ({ appointments }) => {
         return Array.from({ length: 7 }, (_, i) => addDays(start, i));
     }, []);
 
-    const getIntensity = (day: Date, hour: number) => {
+    const getIntensity = useCallback((day: Date, hour: number) => {
         const slotsInHour = appointments.filter(a => {
             const date = parseISO(a.start_time);
             return isSameDay(date, day) && date.getHours() === hour;
@@ -22,7 +22,7 @@ export const AnalyticsHeatmap: React.FC<HeatmapProps> = ({ appointments }) => {
         if (slotsInHour.length === 0) return 0;
         const booked = slotsInHour.filter(s => s.member_id).length;
         return (booked / slotsInHour.length) * 100;
-    };
+    }, [appointments]);
 
     const getColor = (intensity: number) => {
         if (intensity === 0) return 'bg-slate-50 dark:bg-slate-800/20';
@@ -32,7 +32,6 @@ export const AnalyticsHeatmap: React.FC<HeatmapProps> = ({ appointments }) => {
         return 'bg-indigo-700 dark:bg-indigo-400';
     };
 
-    // Dynamic Stats Calculation
     const stats = useMemo(() => {
         let maxHourlyLoad = 0;
         let peakHour = 9;
@@ -62,7 +61,7 @@ export const AnalyticsHeatmap: React.FC<HeatmapProps> = ({ appointments }) => {
             peakWindow: `${peakHour.toString().padStart(2, '0')}:00 — ${(peakHour + 1).toString().padStart(2, '0')}:00`,
             avgLoad: overallLoad.toFixed(1) + '%'
         };
-    }, [appointments, days, hours]);
+    }, [days, hours, getIntensity]);
 
     return (
         <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-6 shadow-sm overflow-hidden">

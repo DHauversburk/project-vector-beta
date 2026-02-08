@@ -4,11 +4,19 @@ import './index.css'
 import App from './App.tsx'
 import { supabase } from './lib/supabase';
 
+// Extend Window interface for debug utilities
+declare global {
+  interface Window {
+    supabase: typeof supabase;
+    toggleRealMode: () => void;
+  }
+}
+
 // Expose Supabase for Debug/Console Scripts
 if (typeof window !== 'undefined') {
-  (window as any).supabase = supabase;
+  window.supabase = supabase;
 
-  (window as any).toggleRealMode = () => {
+  window.toggleRealMode = () => {
     const isMockVar = localStorage.getItem('PROJECT_VECTOR_DEMO_MODE');
     if (isMockVar) {
       localStorage.removeItem('PROJECT_VECTOR_DEMO_MODE');
@@ -27,8 +35,12 @@ if (typeof window !== 'undefined') {
     `);
 }
 
+import { ErrorBoundary } from './components/ErrorBoundary';
+
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <App />
+    <ErrorBoundary>
+      <App />
+    </ErrorBoundary>
   </StrictMode>,
 )

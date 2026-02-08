@@ -9,7 +9,20 @@ const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
 // SAFETY: For Beta, Force Mock Mode unless explicit Live Access is granted via LocalStorage
 const liveAccess = typeof window !== 'undefined' && window.localStorage.getItem('PROJECT_VECTOR_LIVE_ACCESS') === 'true';
-export const IS_MOCK = !liveAccess || !supabaseUrl || !supabaseAnonKey;
+
+let client: ReturnType<typeof createClient> | undefined;
+let isMock = !liveAccess || !supabaseUrl || !supabaseAnonKey;
+
+try {
+    if (!isMock) {
+        client = createClient(supabaseUrl, supabaseAnonKey);
+    }
+} catch (e) {
+    console.error("Supabase Client Init Failed - Falling back to mock", e);
+    isMock = true;
+}
+
+export const IS_MOCK = isMock;
 
 // --- MOCK CLIENT IMPLEMENTATION ---
 
@@ -17,14 +30,14 @@ export const IS_MOCK = !liveAccess || !supabaseUrl || !supabaseAnonKey;
 // This system simulates Supabase's `onAuthStateChange` subscription model.
 // When 'signInWithPassword' or 'signOut' is called in mock mode, we manually fire events
 // to all registered listeners. This ensures the UI (AuthContext) updates immediately.
-const mockAuthListeners: Array<(event: string, session: any) => void> = [];
+const mockAuthListeners: Array<(event: string, session: unknown) => void> = [];
 
-const notifyListeners = (event: string, session: any) => {
+const notifyListeners = (event: string, session: unknown) => {
     mockAuthListeners.forEach(cb => cb(event, session));
 };
 
 // State for Mock Session
-let mockSession: any = null;
+let mockSession: unknown = null;
 
 // Initialize from LocalStorage if available
 if (typeof window !== 'undefined') {
@@ -43,15 +56,15 @@ const mockSupabase = {
     auth: {
         getSession: async () => ({
             data: {
-                session: mockSession
+                session: mockSession as unknown
             },
             error: null
         }),
         getUser: async () => ({
-            data: { user: mockSession?.user ?? null },
+            data: { user: (mockSession as unknown as { user: unknown })?.user ?? null },
             error: null
         }),
-        signInWithPassword: async ({ email }: any) => {
+        signInWithPassword: async ({ email }: { email: string }) => {
             console.log('[MOCK] Sign In:', email);
 
             // Determine Role based on Email Pattern
@@ -119,7 +132,7 @@ const mockSupabase = {
                 error: null
             };
         },
-        signUp: async ({ email, options }: any) => {
+        signUp: async ({ email, options }: { email: string; options?: { data?: unknown } }) => {
             console.log('[MOCK] Sign Up:', email);
             const user = { id: 'mock-user-123', email, user_metadata: options?.data };
             const session = { access_token: 'mock-token', user };
@@ -141,7 +154,7 @@ const mockSupabase = {
             notifyListeners('SIGNED_OUT', null);
             return { error: null };
         },
-        onAuthStateChange: (callback: any) => {
+        onAuthStateChange: (callback: (event: string, session: unknown) => void) => {
             mockAuthListeners.push(callback);
             return {
                 data: {
@@ -200,13 +213,13 @@ const mockSupabase = {
             })
         };
     },
-    rpc: async (fn: string, args: any) => {
+    rpc: async (fn: string, args: unknown) => {
         console.log(`[MOCK] RPC Call: ${fn}`, args);
         return { data: null, error: null };
     }
 };
 
-export const supabase = IS_MOCK ? (mockSupabase as any) : createClient(supabaseUrl, supabaseAnonKey);
+export const supabase = IS_MOCK ? (mockSupabase as unknown as ReturnType<typeof createClient>) : client!;
 
 if (IS_MOCK) {
     console.warn('⚠️ RUNNING IN MOCK MODE: Supabase keys missing. Using fake backend.');

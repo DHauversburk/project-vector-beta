@@ -19,7 +19,7 @@ async function runSuite() {
     if (!providerId) throw new Error("No provider found");
 
     const { data: members } = await supabase.from('users').select('id, token_alias').eq('role', 'member').limit(1);
-    let member = members?.[0];
+    const member = members?.[0];
 
     if (!member) {
         throw new Error("No member found"); // Stop if null

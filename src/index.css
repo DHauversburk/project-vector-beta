@@ -1,70 +1,141 @@
+/* Google Fonts - Inter for UI, JetBrains Mono for code/tokens */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@500;700&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
+/* ============================================================
+   PROJECT VECTOR - DESIGN SYSTEM v2.0 "Vector Dark"
+   ============================================================
+   High-contrast enterprise design with gradient accents.
+   Inspired by AntiGravity IDE and Chrome dark themes.
+   
+   TROUBLESHOOTING:
+   - Colors not applying? Check if dark mode class is on <html>
+   - Gradients broken? Ensure gradient utilities are below base
+   - Fonts not loading? Verify Google Fonts link in index.html
+   ============================================================ */
+
 @layer base {
+
+  /* ============================================================
+     LIGHT MODE - Clean, professional, high contrast
+     ============================================================ */
   :root {
-    --background: 0 0% 100%;
-    --foreground: 222.2 84% 4.9%;
+    /* Core Surfaces */
+    --background: 220 20% 98%;
+    --foreground: 222 47% 11%;
 
+    /* Card Surfaces */
     --card: 0 0% 100%;
-    --card-foreground: 222.2 84% 4.9%;
+    --card-foreground: 222 47% 11%;
 
+    /* Popover/Modal Surfaces */
     --popover: 0 0% 100%;
-    --popover-foreground: 222.2 84% 4.9%;
+    --popover-foreground: 222 47% 11%;
 
-    --primary: 222.2 47.4% 11.2%;
-    --primary-foreground: 210 40% 98%;
+    /* Primary Action - Blue gradient base */
+    --primary: 217 91% 60%;
+    --primary-foreground: 0 0% 100%;
 
-    --secondary: 210 40% 96.1%;
-    --secondary-foreground: 222.2 47.4% 11.2%;
+    /* Secondary - Subtle surface */
+    --secondary: 220 14% 96%;
+    --secondary-foreground: 222 47% 11%;
 
-    --muted: 210 40% 96.1%;
-    --muted-foreground: 215.4 16.3% 35.1%;
-    /* ENHANCED CONTRAST */
+    /* Muted - Subdued elements */
+    --muted: 220 14% 96%;
+    --muted-foreground: 220 9% 46%;
 
-    --accent: 210 40% 96.1%;
-    --accent-foreground: 222.2 47.4% 11.2%;
+    /* Accent - Highlight elements */
+    --accent: 220 14% 96%;
+    --accent-foreground: 222 47% 11%;
 
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 210 40% 98%;
+    /* Destructive - Danger/Error */
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
 
-    --border: 214.3 31.8% 91.4%;
-    --input: 214.3 31.8% 91.4%;
-    --ring: 222.2 84% 4.9%;
+    /* Success - Confirmations */
+    --success: 145 80% 42%;
+    --success-foreground: 0 0% 100%;
 
-    --radius: 0.5rem;
+    /* Warning - Attention needed */
+    --warning: 40 95% 55%;
+    --warning-foreground: 222 47% 11%;
+
+    /* Borders and Inputs */
+    --border: 220 13% 91%;
+    --input: 220 13% 91%;
+    --ring: 217 91% 60%;
+
+    /* Radius */
+    --radius: 0.75rem;
+
+    /* Vector Gradient Colors */
+    --gradient-start: 217 91% 60%;
+    /* Electric Blue */
+    --gradient-mid: 262 83% 58%;
+    /* Purple */
+    --gradient-end: 330 81% 60%;
+    /* Magenta */
   }
 
+  /* ============================================================
+     DARK MODE - Deep blue-black with vibrant accents
+     ============================================================ */
   .dark {
-    --background: 222.2 84% 4.9%;
-    --foreground: 210 40% 98%;
+    /* Core Surfaces - Deep blue-black */
+    --background: 222 47% 6%;
+    --foreground: 220 20% 98%;
 
-    --card: 222.2 84% 4.9%;
-    --card-foreground: 210 40% 98%;
+    /* Card Surfaces - Slightly elevated */
+    --card: 222 47% 9%;
+    --card-foreground: 220 20% 98%;
 
-    --popover: 222.2 84% 4.9%;
-    --popover-foreground: 210 40% 98%;
+    /* Popover/Modal - Glass effect base */
+    --popover: 222 47% 11%;
+    --popover-foreground: 220 20% 98%;
 
-    --primary: 210 40% 98%;
-    --primary-foreground: 222.2 47.4% 11.2%;
+    /* Primary Action - Vibrant blue */
+    --primary: 217 91% 60%;
+    --primary-foreground: 0 0% 100%;
 
-    --secondary: 217.2 32.6% 17.5%;
-    --secondary-foreground: 210 40% 98%;
+    /* Secondary - Elevated surface */
+    --secondary: 222 30% 14%;
+    --secondary-foreground: 220 20% 98%;
 
-    --muted: 217.2 32.6% 17.5%;
-    --muted-foreground: 215 20.2% 80.1%;
-    /* ENHANCED CONTRAST */
+    /* Muted - Subdued elements */
+    --muted: 222 30% 14%;
+    --muted-foreground: 220 15% 65%;
 
-    --accent: 217.2 32.6% 17.5%;
-    --accent-foreground: 210 40% 98%;
+    /* Accent - Interactive highlights */
+    --accent: 222 30% 18%;
+    --accent-foreground: 220 20% 98%;
 
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 210 40% 98%;
+    /* Destructive - Danger/Error (darker for dark mode) */
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 100%;
 
-    --border: 217.2 32.6% 17.5%;
-    --input: 217.2 32.6% 17.5%;
-    --ring: 212.7 26.8% 83.9%;
+    /* Success - Confirmations */
+    --success: 145 70% 45%;
+    --success-foreground: 0 0% 100%;
+
+    /* Warning - Attention needed */
+    --warning: 40 95% 50%;
+    --warning-foreground: 222 47% 11%;
+
+    /* Borders and Inputs */
+    --border: 222 30% 18%;
+    --input: 222 30% 14%;
+    --ring: 217 91% 60%;
+
+    /* Vector Gradient Colors - More vibrant in dark mode */
+    --gradient-start: 217 100% 60%;
+    /* Brighter Blue */
+    --gradient-mid: 262 95% 65%;
+    /* Brighter Purple */
+    --gradient-end: 330 90% 65%;
+    /* Brighter Magenta */
   }
 }
 
@@ -74,49 +145,390 @@
   }
 
   html {
-    /* Allow native scroll behavior */
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
   }
 
   body {
     @apply bg-background text-foreground min-h-screen;
     font-feature-settings: "cv02", "cv03", "cv04", "cv11";
   }
+
+  /* Monospace elements (tokens, codes) */
+  code,
+  .font-mono,
+  [data-token] {
+    font-family: 'JetBrains Mono', ui-monospace, monospace;
+  }
 }
 
-/* Accessibility Utilities */
+/* ============================================================
+   VECTOR DESIGN UTILITIES
+   Enterprise-grade utility classes for consistent styling
+   ============================================================ */
 @layer utilities {
+
+  /* --- Typography Utilities --- */
   .ent-label {
-    @apply text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400;
+    @apply text-[10px] font-black uppercase tracking-widest;
+    @apply text-slate-600 dark:text-slate-400;
   }
 
   .ent-value {
-    @apply text-sm font-black text-slate-900 dark:text-white leading-tight;
+    @apply text-sm font-black leading-tight;
+    @apply text-slate-900 dark:text-white;
   }
 
   .ent-muted {
-    @apply text-[9px] font-bold text-slate-600 dark:text-slate-300 uppercase tracking-tight;
+    @apply text-[9px] font-bold uppercase tracking-tight;
+    @apply text-slate-500 dark:text-slate-400;
   }
 
+  .ent-heading {
+    @apply text-lg font-black uppercase tracking-wide;
+    @apply text-slate-900 dark:text-white;
+  }
+
+  /* --- Card Utilities --- */
   .ent-card {
-    @apply bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 shadow-sm rounded-lg;
+    @apply bg-white dark:bg-slate-900/80;
+    @apply border border-slate-200 dark:border-slate-800;
+    @apply shadow-sm rounded-xl;
   }
 
-  /* Custom Scrollbar */
+  .ent-card-elevated {
+    @apply bg-white dark:bg-slate-900;
+    @apply border border-slate-200 dark:border-slate-700;
+    @apply shadow-lg dark:shadow-2xl dark:shadow-black/20;
+    @apply rounded-2xl;
+  }
+
+  /* --- Glassmorphism Effect --- */
+  .vector-glass {
+    @apply bg-white/80 dark:bg-slate-900/80;
+    @apply backdrop-blur-xl;
+    @apply border border-slate-200/50 dark:border-slate-700/50;
+    @apply shadow-xl;
+  }
+
+  .vector-glass-strong {
+    @apply bg-white/90 dark:bg-slate-950/90;
+    @apply backdrop-blur-2xl;
+    @apply border border-slate-200/80 dark:border-slate-700/80;
+    @apply shadow-2xl;
+  }
+
+  /* --- Gradient Utilities --- */
+  .vector-gradient {
+    background: linear-gradient(135deg,
+        hsl(var(--gradient-start)) 0%,
+        hsl(var(--gradient-mid)) 50%,
+        hsl(var(--gradient-end)) 100%);
+  }
+
+  .vector-gradient-text {
+    background: linear-gradient(135deg,
+        hsl(var(--gradient-start)) 0%,
+        hsl(var(--gradient-mid)) 50%,
+        hsl(var(--gradient-end)) 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+
+  .vector-gradient-border {
+    position: relative;
+  }
+
+  .vector-gradient-border::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    padding: 1px;
+    border-radius: inherit;
+    background: linear-gradient(135deg,
+        hsl(var(--gradient-start)) 0%,
+        hsl(var(--gradient-mid)) 50%,
+        hsl(var(--gradient-end)) 100%);
+    -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+    mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+    pointer-events: none;
+  }
+
+  /* --- Glow Effects --- */
+  .vector-glow {
+    box-shadow:
+      0 0 20px hsla(217, 91%, 60%, 0.15),
+      0 0 40px hsla(262, 83%, 58%, 0.1);
+  }
+
+  .vector-glow-strong {
+    box-shadow:
+      0 0 30px hsla(217, 91%, 60%, 0.25),
+      0 0 60px hsla(262, 83%, 58%, 0.15),
+      0 0 100px hsla(330, 81%, 60%, 0.1);
+  }
+
+  .dark .vector-glow {
+    box-shadow:
+      0 0 30px hsla(217, 100%, 60%, 0.2),
+      0 0 60px hsla(262, 95%, 65%, 0.15);
+  }
+
+  .dark .vector-glow-strong {
+    box-shadow:
+      0 0 40px hsla(217, 100%, 60%, 0.3),
+      0 0 80px hsla(262, 95%, 65%, 0.2),
+      0 0 120px hsla(330, 90%, 65%, 0.1);
+  }
+
+  /* --- Status Indicator Colors --- */
+  .status-success {
+    @apply text-emerald-600 dark:text-emerald-400;
+  }
+
+  .status-warning {
+    @apply text-amber-600 dark:text-amber-400;
+  }
+
+  .status-danger {
+    @apply text-red-600 dark:text-red-400;
+  }
+
+  .status-info {
+    @apply text-blue-600 dark:text-blue-400;
+  }
+
+  .status-secure {
+    @apply text-cyan-600 dark:text-cyan-400;
+  }
+
+  /* --- Custom Scrollbar --- */
   .custom-scrollbar::-webkit-scrollbar {
-    width: 4px;
-    height: 4px;
+    width: 6px;
+    height: 6px;
   }
 
   .custom-scrollbar::-webkit-scrollbar-track {
-    @apply bg-slate-50 dark:bg-slate-900;
+    @apply bg-slate-100 dark:bg-slate-900 rounded-full;
   }
 
   .custom-scrollbar::-webkit-scrollbar-thumb {
-    @apply bg-slate-200 dark:bg-slate-700 rounded-full hover:bg-slate-300 dark:hover:bg-slate-600 transition-colors;
+    @apply bg-slate-300 dark:bg-slate-700 rounded-full;
+    @apply hover:bg-slate-400 dark:hover:bg-slate-600;
+    @apply transition-colors;
+  }
+
+  /* ============================================================
+     MICRO-INTERACTIONS (Phase 4.2)
+     Button effects, card animations, loading states
+     ============================================================ */
+
+  /* --- Button Ripple Effect --- */
+  .btn-ripple {
+    position: relative;
+    overflow: hidden;
+  }
+
+  .btn-ripple::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(circle, rgba(255, 255, 255, 0.4) 0%, transparent 60%);
+    transform: scale(0);
+    opacity: 0;
+    transition: transform 0.4s ease, opacity 0.3s ease;
+  }
+
+  .btn-ripple:active::after {
+    transform: scale(2.5);
+    opacity: 1;
+    transition: transform 0s, opacity 0s;
+  }
+
+  /* --- Card Hover Lift --- */
+  .card-hover-lift {
+    @apply transition-all duration-300 ease-out;
+  }
+
+  .card-hover-lift:hover {
+    transform: translateY(-4px);
+    @apply shadow-lg dark:shadow-2xl dark:shadow-black/30;
+  }
+
+  .card-hover-lift:active {
+    transform: translateY(-2px);
+  }
+
+  /* --- Card Hover Glow --- */
+  .card-hover-glow {
+    @apply transition-all duration-300;
+  }
+
+  .card-hover-glow:hover {
+    @apply border-indigo-300 dark:border-indigo-600;
+    box-shadow: 0 0 20px hsla(217, 91%, 60%, 0.15);
+  }
+
+  .dark .card-hover-glow:hover {
+    box-shadow: 0 0 30px hsla(217, 100%, 60%, 0.2);
+  }
+
+  /* --- Skeleton Loading --- */
+  .skeleton {
+    @apply bg-slate-200 dark:bg-slate-800 rounded;
+    background-image: linear-gradient(90deg,
+        rgba(255, 255, 255, 0) 0%,
+        rgba(255, 255, 255, 0.2) 50%,
+        rgba(255, 255, 255, 0) 100%);
+    background-size: 200% 100%;
+    animation: skeleton-shimmer 1.5s infinite;
+  }
+
+  .dark .skeleton {
+    background-image: linear-gradient(90deg,
+        rgba(255, 255, 255, 0) 0%,
+        rgba(255, 255, 255, 0.05) 50%,
+        rgba(255, 255, 255, 0) 100%);
+  }
+
+  .skeleton-text {
+    @apply h-4 rounded-full;
+  }
+
+  .skeleton-circle {
+    @apply rounded-full;
+  }
+
+  .skeleton-card {
+    @apply p-4 rounded-xl border border-slate-200 dark:border-slate-800;
+  }
+
+  /* --- Interactive Press --- */
+  .press-effect {
+    @apply transition-transform duration-150 ease-out;
+  }
+
+  .press-effect:active {
+    transform: scale(0.97);
+  }
+
+  /* --- Hover Scale --- */
+  .hover-scale {
+    @apply transition-transform duration-200 ease-out;
+  }
+
+  .hover-scale:hover {
+    transform: scale(1.02);
+  }
+
+  /* --- Icon Spin on Hover --- */
+  .icon-spin-hover:hover svg,
+  .icon-spin-hover:hover .icon {
+    animation: icon-spin 0.5s ease-in-out;
+  }
+
+  /* --- Focus Utilities --- */
+  .focus-ring {
+    @apply focus:outline-none focus:ring-2 focus:ring-offset-2;
+    @apply focus:ring-blue-500 dark:focus:ring-blue-400;
+    @apply focus:ring-offset-white dark:focus:ring-offset-slate-900;
+  }
+
+  .focus-glow {
+    @apply focus:outline-none;
+    transition: box-shadow 0.2s ease;
+  }
+
+  .focus-glow:focus {
+    box-shadow:
+      0 0 0 2px hsl(var(--background)),
+      0 0 0 4px hsl(var(--primary)),
+      0 0 20px hsla(217, 91%, 60%, 0.3);
+  }
+
+  /* ============================================================
+     RESPONSIVE & TOUCH UTILITIES (Phase 4.3)
+     Mobile-first touch targets and safe areas
+     ============================================================ */
+
+  /* --- Touch Target Minimum (44x44px) --- */
+  .touch-target {
+    @apply min-h-[44px] min-w-[44px];
+  }
+
+  .touch-target-large {
+    @apply min-h-[48px] min-w-[48px];
+  }
+
+  /* --- Safe Area Padding --- */
+  .safe-area-top {
+    padding-top: env(safe-area-inset-top);
+  }
+
+  .safe-area-bottom {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+
+  .safe-area-left {
+    padding-left: env(safe-area-inset-left);
+  }
+
+  .safe-area-right {
+    padding-right: env(safe-area-inset-right);
+  }
+
+  .safe-area-x {
+    padding-left: env(safe-area-inset-left);
+    padding-right: env(safe-area-inset-right);
+  }
+
+  .safe-area-y {
+    padding-top: env(safe-area-inset-top);
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+
+  .safe-area-all {
+    padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+  }
+
+  /* --- Mobile Spacing --- */
+  .mobile-padding {
+    @apply px-4 sm:px-6 md:px-8;
+  }
+
+  .mobile-gap {
+    @apply gap-3 sm:gap-4 md:gap-6;
+  }
+
+  /* --- Hide scrollbar but keep functionality --- */
+  .hide-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+
+  .hide-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+
+  /* --- Tap Highlight (iOS) --- */
+  .no-tap-highlight {
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  /* --- Pull-to-refresh safe zone --- */
+  .overscroll-contain {
+    overscroll-behavior: contain;
   }
 }
 
-/* Enterprise Animation Extensions */
+/* ============================================================
+   ANIMATION UTILITIES
+   Smooth, enterprise-grade animations
+   ============================================================ */
 @keyframes subtle-pulse {
 
   0%,
@@ -129,12 +541,412 @@
   }
 }
 
+@keyframes glow-pulse {
+
+  0%,
+  100% {
+    box-shadow: 0 0 20px hsla(217, 91%, 60%, 0.2);
+  }
+
+  50% {
+    box-shadow: 0 0 40px hsla(217, 91%, 60%, 0.4);
+  }
+}
+
+@keyframes gradient-shift {
+  0% {
+    background-position: 0% 50%;
+  }
+
+  50% {
+    background-position: 100% 50%;
+  }
+
+  100% {
+    background-position: 0% 50%;
+  }
+}
+
+@keyframes slide-up {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes slide-down {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes scale-in {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes skeleton-shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+@keyframes icon-spin {
+  0% {
+    transform: rotate(0deg);
+  }
+
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
 .animate-subtle-pulse {
   animation: subtle-pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite;
 }
+
+.animate-glow-pulse {
+  animation: glow-pulse 2s ease-in-out infinite;
+}
+
+.animate-gradient-shift {
+  background-size: 200% 200%;
+  animation: gradient-shift 3s ease infinite;
+}
+
+.animate-slide-up {
+  animation: slide-up 0.3s ease-out;
+}
+
+.animate-slide-down {
+  animation: slide-down 0.3s ease-out;
+}
+
+.animate-fade-in {
+  animation: fade-in 0.2s ease-out;
+}
+
+.animate-scale-in {
+  animation: scale-in 0.2s ease-out;
+}
+
+@keyframes slide-in-from-bottom {
+  from {
+    opacity: 0;
+    transform: translateY(100%);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-slide-in-from-bottom {
+  animation: slide-in-from-bottom 0.3s ease-out;
+}
+
+/* ============================================================
+   COMPONENT OVERRIDES
+   Global component behavior adjustments
+   ============================================================ */
 
 /* Force Light Icons for Date/Time Inputs in Dark Mode */
 .dark ::-webkit-calendar-picker-indicator {
   filter: invert(1) opacity(0.8);
   cursor: pointer;
+}
+
+/* Input placeholder contrast */
+input::placeholder,
+textarea::placeholder {
+  @apply text-slate-400 dark:text-slate-500;
+}
+
+/* Selection styling */
+::selection {
+  @apply bg-blue-500/20 dark:bg-blue-400/30;
+}
+
+/* Smooth scrolling */
+@media (prefers-reduced-motion: no-preference) {
+  html {
+    scroll-behavior: smooth;
+  }
+}
+
+/* Reduced motion preferences */
+@media (prefers-reduced-motion: reduce) {
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* ============================================================
+   ACCESSIBILITY UTILITIES (WCAG 2.1 AA/AAA)
+   Screen reader utilities and high contrast support
+   ============================================================ */
+
+/* Screen Reader Only - Visually Hide but Keep Accessible */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* Screen Reader Focusable - Shows when focused */
+.sr-only-focusable:focus,
+.sr-only-focusable:active {
+  position: static;
+  width: auto;
+  height: auto;
+  padding: inherit;
+  margin: inherit;
+  overflow: visible;
+  clip: auto;
+  white-space: normal;
+}
+
+/* Not Screen Reader Only - Override for visible content */
+.not-sr-only {
+  position: static;
+  width: auto;
+  height: auto;
+  padding: 0;
+  margin: 0;
+  overflow: visible;
+  clip: auto;
+  white-space: normal;
+}
+
+/* ============================================================
+   HIGH CONTRAST MODE (WCAG AAA)
+   Enhanced visibility for users with visual impairments
+   ============================================================ */
+
+/* High Contrast - Light */
+:root.high-contrast {
+  /* Override with maximum contrast colors */
+  --background: 0 0% 100%;
+  --foreground: 0 0% 0%;
+
+  --card: 0 0% 100%;
+  --card-foreground: 0 0% 0%;
+
+  --popover: 0 0% 100%;
+  --popover-foreground: 0 0% 0%;
+
+  --primary: 240 100% 25%;
+  --primary-foreground: 0 0% 100%;
+
+  --secondary: 0 0% 90%;
+  --secondary-foreground: 0 0% 0%;
+
+  --muted: 0 0% 90%;
+  --muted-foreground: 0 0% 20%;
+
+  --accent: 0 0% 90%;
+  --accent-foreground: 0 0% 0%;
+
+  --destructive: 0 100% 40%;
+  --destructive-foreground: 0 0% 100%;
+
+  --success: 120 100% 25%;
+  --success-foreground: 0 0% 100%;
+
+  --warning: 45 100% 35%;
+  --warning-foreground: 0 0% 0%;
+
+  --border: 0 0% 0%;
+  --input: 0 0% 0%;
+  --ring: 240 100% 25%;
+}
+
+/* High Contrast - Dark */
+.dark.high-contrast,
+:root.dark.high-contrast {
+  --background: 0 0% 0%;
+  --foreground: 0 0% 100%;
+
+  --card: 0 0% 5%;
+  --card-foreground: 0 0% 100%;
+
+  --popover: 0 0% 5%;
+  --popover-foreground: 0 0% 100%;
+
+  --primary: 210 100% 70%;
+  --primary-foreground: 0 0% 0%;
+
+  --secondary: 0 0% 15%;
+  --secondary-foreground: 0 0% 100%;
+
+  --muted: 0 0% 15%;
+  --muted-foreground: 0 0% 75%;
+
+  --accent: 0 0% 20%;
+  --accent-foreground: 0 0% 100%;
+
+  --destructive: 0 100% 60%;
+  --destructive-foreground: 0 0% 0%;
+
+  --success: 120 100% 50%;
+  --success-foreground: 0 0% 0%;
+
+  --warning: 45 100% 55%;
+  --warning-foreground: 0 0% 0%;
+
+  --border: 0 0% 100%;
+  --input: 0 0% 100%;
+  --ring: 210 100% 70%;
+}
+
+/* High Contrast Mode Visibility Enhancements */
+.high-contrast {
+  /* Force thicker borders */
+  --border-width: 2px;
+}
+
+.high-contrast * {
+  /* Force border width */
+  border-width: var(--border-width, 1px) !important;
+}
+
+.high-contrast button,
+.high-contrast a,
+.high-contrast input,
+.high-contrast select,
+.high-contrast textarea {
+  /* Force underlines and clear indication of interactivity */
+  outline-offset: 2px;
+}
+
+.high-contrast a {
+  text-decoration: underline !important;
+  text-underline-offset: 3px;
+}
+
+.high-contrast button:focus,
+.high-contrast a:focus,
+.high-contrast input:focus,
+.high-contrast select:focus,
+.high-contrast textarea:focus {
+  /* Extra thick focus ring in high contrast */
+  outline: 3px solid hsl(var(--ring)) !important;
+  outline-offset: 3px !important;
+}
+
+/* High Contrast Badge Adjustments */
+.high-contrast .badge,
+.high-contrast [class*="badge"] {
+  border: 2px solid currentColor !important;
+  font-weight: 700 !important;
+}
+
+/* Disable Glassmorphism in High Contrast */
+.high-contrast .vector-glass,
+.high-contrast .vector-glass-strong,
+.high-contrast .backdrop-blur,
+.high-contrast .backdrop-blur-sm,
+.high-contrast .backdrop-blur-md,
+.high-contrast .backdrop-blur-lg,
+.high-contrast .backdrop-blur-xl,
+.high-contrast .backdrop-blur-2xl {
+  backdrop-filter: none !important;
+  background-color: hsl(var(--background)) !important;
+  background-image: none !important;
+}
+
+/* Disable Gradients in High Contrast */
+.high-contrast .vector-gradient,
+.high-contrast .vector-gradient-text {
+  background: hsl(var(--primary)) !important;
+  color: hsl(var(--primary-foreground)) !important;
+  -webkit-text-fill-color: unset !important;
+}
+
+/* Force Solid Shadows in High Contrast */
+.high-contrast .shadow,
+.high-contrast .shadow-sm,
+.high-contrast .shadow-md,
+.high-contrast .shadow-lg,
+.high-contrast .shadow-xl,
+.high-contrast .shadow-2xl {
+  box-shadow: 3px 3px 0 hsl(var(--border)) !important;
+}
+
+/* Enhanced Focus Visible Indicators (all modes) */
+@layer utilities {
+  .focus-visible-enhanced:focus-visible {
+    outline: 2px solid hsl(var(--ring));
+    outline-offset: 2px;
+    box-shadow: 0 0 0 4px hsla(217, 91%, 60%, 0.25);
+  }
+
+  .high-contrast .focus-visible-enhanced:focus-visible {
+    outline: 3px solid hsl(var(--ring));
+    outline-offset: 3px;
+    box-shadow: none;
+  }
+}
+
+/* Prefers High Contrast Media Query (System Level) */
+@media (prefers-contrast: more) {
+  :root {
+    --border: 0 0% 0%;
+  }
+
+  .dark {
+    --border: 0 0% 100%;
+  }
+
+  * {
+    border-width: 2px !important;
+  }
+
+  a {
+    text-decoration: underline !important;
+  }
 }

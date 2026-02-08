@@ -15,21 +15,14 @@ export const SystemStatusBar = () => {
 
     if (IS_MOCK) {
         return (
-            <div className="bg-amber-400 text-amber-950 px-4 py-1.5 flex items-center justify-center font-black text-[10px] sm:text-xs uppercase tracking-[0.2em] relative z-[100] shadow-sm select-none border-b border-amber-500/20">
-                <span className="flex items-center gap-2">
-                    <span className="hidden sm:inline">⚠</span>
-                    BETA PREVIEW: SIMULATION MODE ACTIVE (LOCAL BROWSER)
-                    <span className="hidden sm:inline">⚠</span>
-                </span>
+            <div className="fixed bottom-6 left-4 z-[50] pointer-events-none">
+                <div className="bg-amber-400/90 backdrop-blur text-amber-950 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider shadow-lg border border-amber-500/20 opacity-50 hover:opacity-100 transition-opacity flex items-center gap-2">
+                    <span className="w-1.5 h-1.5 rounded-full bg-amber-600 animate-pulse" />
+                    BETA: MOCK
+                </div>
             </div>
         );
     }
 
-    return (
-        <div className="bg-emerald-600 dark:bg-emerald-700/80 backdrop-blur-md text-white px-4 py-1.5 flex items-center justify-center font-black text-[10px] sm:text-xs uppercase tracking-[0.2em] relative z-[100] shadow-sm select-none border-b border-emerald-500/20">
-            <span className="flex items-center gap-2">
-                ✓ LIVE SYSTEM: PRODUCTION DATA ACTIVE
-            </span>
-        </div>
-    );
+    return null; // Production mode is silent/clean or maybe just a console log
 };

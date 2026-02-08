@@ -38,8 +38,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const fetchProfile = async (userId: string, currentUser: User) => {
         console.log('[AuthContext] Fetching profile for userId:', userId);
         try {
-            const { data, error } = await supabase
-                .from('users')
+            const { data, error } = await (supabase
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                .from('users') as any)
                 .select('role, token_alias, service_type')
                 .eq('id', userId)
                 .single();
@@ -82,11 +83,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 fetchProfile(session.user.id, session.user).then(() => {
                     // CRITICAL: Ensure loading is disabled after profile fetch
                     setLoading(false);
+
                 });
             } else {
                 setLoading(false);
             }
-        }).catch((err: any) => {
+        }).catch((err: Error) => {
             console.error("Auth Session Error:", err);
             // SAFETY VALVE: Ensure we never get stuck on "Authenticating..."
             setLoading(false);
@@ -133,6 +135,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 
+
+
+// eslint-disable-next-line react-refresh/only-export-components
 export function useAuth() {
     const context = useContext(AuthContext);
     if (context === undefined) {

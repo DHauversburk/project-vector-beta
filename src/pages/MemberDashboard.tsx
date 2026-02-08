@@ -1,18 +1,261 @@
-import { useEffect, useState, useMemo } from 'react';
-import { api, type Appointment } from '../lib/api';
+import { useEffect, useState, useMemo, lazy, Suspense } from 'react';
+import { api, type Appointment, type WaitlistEntry } from '../lib/api';
 import { Button } from '../components/ui/Button';
-import { Loader2, Plus, Star, Calendar, Clock, MapPin, X, Shield, Activity, LogOut, Moon, Sun, Lock, CalendarPlus, Zap, Menu } from 'lucide-react';
-import { SecuritySettings } from '../components/SecuritySettings';
-import { PatientResourcesView } from '../components/member/PatientResourcesView';
-import { ServiceTeamSelector } from '../components/member/ServiceTeamSelector';
+import { Loader2, Calendar, Clock, X, Shield, Activity, Lock, Zap, Video, FileText, ChevronDown, Download, Star } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
-import { useTheme } from '../contexts/ThemeContext';
 import { format, parseISO, isSameDay, differenceInMinutes } from 'date-fns';
 import { generateICS } from '../lib/ics';
+import { DashboardLayout, type NavItem } from '../components/layout/DashboardLayout';
+import { WelcomeModal } from '../components/onboarding/WelcomeModal';
+import {
+    Card,
+    CardContent,
+    CardHeader,
+    CardTitle,
+    CardDescription
+} from '../components/ui/Card';
+import { Badge } from '../components/ui/Badge';
+import { cn } from '../lib/utils';
+
+// --- LAZY-LOADED COMPONENTS ---
+const SecuritySettings = lazy(() => import('../components/SecuritySettings').then(m => ({ default: m.SecuritySettings })));
+const PatientResourcesView = lazy(() => import('../components/member/PatientResourcesView').then(m => ({ default: m.PatientResourcesView })));
+const HelpRequestModal = lazy(() => import('../components/ui/HelpRequestModal').then(m => ({ default: m.HelpRequestModal })));
+const WaitlistModal = lazy(() => import('../components/ui/WaitlistModal').then(m => ({ default: m.WaitlistModal })));
+
+// --- FEATURE COMPONENTS (Direct) ---
+import { ServiceTeamSelector } from '../components/member/ServiceTeamSelector';
+import { QuickActionsPanel } from '../components/member/QuickActionsPanel';
+import { LoadingState } from '../components/ui/LoadingState';
+
+/**
+ * Feature-level loading fallback
+ */
+const FeatureLoading = () => (
+    <div className="w-full flex justify-center py-12">
+        <LoadingState message="ACCESSING MEDICAL DATA..." />
+    </div>
+);
+
+/**
+ * Live countdown to the next appointment
+ */
+function AppointmentCountdown({ startTime }: { startTime: string }) {
+    const [timeLeft, setTimeLeft] = useState({ days: 0, hours: 0, minutes: 0, seconds: 0 });
+
+    useEffect(() => {
+        const calculate = () => {
+            const diff = new Date(startTime).getTime() - new Date().getTime();
+            if (diff <= 0) return { days: 0, hours: 0, minutes: 0, seconds: 0 };
+
+            return {
+                days: Math.floor(diff / (1000 * 60 * 60 * 24)),
+                hours: Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60)),
+                minutes: Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60)),
+                seconds: Math.floor((diff % (1000 * 60)) / 1000)
+            };
+        };
+
+        const timer = setInterval(() => setTimeLeft(calculate()), 1000);
+        return () => clearInterval(timer);
+    }, [startTime]);
+
+    return (
+        <div className="flex gap-4">
+            <div className="text-center">
+                <div className="text-3xl font-black font-mono tracking-tighter text-white">{timeLeft.days}</div>
+                <div className="text-[8px] font-bold uppercase tracking-widest text-indigo-300">Days</div>
+            </div>
+            <div className="text-center">
+                <div className="text-3xl font-black font-mono tracking-tighter text-white">{timeLeft.hours}</div>
+                <div className="text-[8px] font-bold uppercase tracking-widest text-indigo-300">Hours</div>
+            </div>
+            <div className="text-center">
+                <div className="text-3xl font-black font-mono tracking-tighter text-white">{timeLeft.minutes}</div>
+                <div className="text-[8px] font-bold uppercase tracking-widest text-indigo-300">Mins</div>
+            </div>
+        </div>
+    );
+}
+
+/**
+ * Individual Appointment Row with Expandable Details
+ */
+function AppointmentRow({
+    appt,
+    onReschedule,
+    onCancel,
+    onFeedback,
+    getProviderLocation
+}: {
+    appt: Appointment;
+    onReschedule: (id: string) => void;
+    onCancel: (id: string) => void;
+    onFeedback: (id: string) => void;
+    getProviderLocation: (type?: string) => string;
+}) {
+    const [isExpanded, setIsExpanded] = useState(false);
+    const cancelReason = appt.notes?.split('|').find((s: string) => s.trim().startsWith('CANCEL_REASON:'))?.replace('CANCEL_REASON:', '').trim();
+    const diff = differenceInMinutes(parseISO(appt.start_time), new Date());
+    const isPast = new Date(appt.start_time) < new Date();
+
+    return (
+        <Card
+            variant={isExpanded ? 'elevated' : 'default'}
+            className={cn(
+                'overflow-hidden transition-all duration-300 transform',
+                isExpanded ? 'scale-[1.01] border-indigo-500/30' : 'hover:scale-[1.005] hover:border-indigo-500/10',
+                appt.status === 'cancelled' && 'opacity-70 grayscale-[0.5]'
+            )}
+        >
+            <div
+                className="p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 cursor-pointer"
+                onClick={() => setIsExpanded(!isExpanded)}
+            >
+                <div className="flex items-center gap-5">
+                    {/* Date Badge */}
+                    <div className={cn(
+                        "flex flex-col items-center justify-center w-14 h-14 border rounded-xl shrink-0 transition-colors",
+                        appt.status === 'cancelled'
+                            ? "bg-red-50 dark:bg-red-900/10 border-red-100 dark:border-red-900/20 text-red-400"
+                            : "bg-slate-50 dark:bg-slate-800/50 border-slate-100 dark:border-slate-800 text-slate-900 dark:text-slate-300"
+                    )}>
+                        <span className="text-[9px] font-black uppercase opacity-60 tracking-tighter">
+                            {format(parseISO(appt.start_time), 'MMM')}
+                        </span>
+                        <span className="text-xl font-black tracking-tight leading-none">
+                            {format(parseISO(appt.start_time), 'dd')}
+                        </span>
+                    </div>
+
+                    <div className="space-y-1">
+                        <div className="flex items-center gap-3">
+                            <h4 className={cn(
+                                "text-sm font-black tracking-tight uppercase",
+                                appt.status === 'cancelled' ? 'text-slate-400 line-through' : 'text-slate-900 dark:text-white'
+                            )}>
+                                {format(parseISO(appt.start_time), 'HH:mm')} — {appt.provider?.token_alias || 'Staff Member'}
+                            </h4>
+                            {appt.status === 'cancelled' && (
+                                <Badge variant="danger">Cancelled</Badge>
+                            )}
+                            {!isPast && appt.status !== 'cancelled' && diff < 1440 && (
+                                <Badge variant="outline" className="animate-pulse border-amber-500/50 text-amber-500">Upcoming</Badge>
+                            )}
+                        </div>
+                        <p className="text-[10px] font-bold text-slate-500 uppercase flex items-center gap-1.5 tracking-wide">
+                            <Activity className="w-3 h-3 text-indigo-400" />
+                            <span>{getProviderLocation(appt.provider?.service_type)}</span>
+                        </p>
+                    </div>
+                </div>
+
+                <div className="flex items-center gap-2 pl-20 sm:pl-0">
+                    <ChevronDown className={cn("w-5 h-5 text-slate-300 transition-transform duration-300", isExpanded && "rotate-180")} />
+                </div>
+            </div>
+
+            {/* Expanded Content */}
+            {isExpanded && (
+                <div className="px-5 pb-5 pt-2 border-t border-slate-50 dark:border-slate-800 animate-in slide-in-from-top-2 duration-300">
+                    <div className="grid md:grid-cols-2 gap-6 mb-6">
+                        <div className="space-y-4">
+                            <div>
+                                <h5 className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2">Clinical Details</h5>
+                                <div className="bg-slate-50 dark:bg-slate-950 p-3 rounded-lg border border-slate-100 dark:border-slate-800">
+                                    <p className="text-xs font-bold text-slate-700 dark:text-slate-300 leading-relaxed">
+                                        {appt.notes?.split('|')[0] || 'No visit notes provided.'}
+                                    </p>
+                                </div>
+                            </div>
+
+                            {cancelReason && (
+                                <div>
+                                    <h5 className="text-[9px] font-black text-red-400 uppercase tracking-[0.2em] mb-2">Cancellation Protocol</h5>
+                                    <div className="bg-red-50 dark:bg-red-900/10 p-3 rounded-lg border border-red-100 dark:border-red-900/20">
+                                        <p className="text-xs font-bold text-red-600 dark:text-red-400 italic">
+                                            "{cancelReason}"
+                                        </p>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+
+                        <div className="space-y-4">
+                            <div>
+                                <h5 className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2">Operational Metadata</h5>
+                                <div className="space-y-2">
+                                    <div className="flex items-center justify-between text-[10px] font-bold uppercase tracking-wider">
+                                        <span className="text-slate-500">Service Area</span>
+                                        <span className="text-slate-700 dark:text-slate-300">{appt.provider?.service_type}</span>
+                                    </div>
+                                    <div className="flex items-center justify-between text-[10px] font-bold uppercase tracking-wider">
+                                        <span className="text-slate-500">Visit Type</span>
+                                        <span className="text-indigo-500">{appt.is_video ? 'Telehealth (Encrypted)' : 'In-Clinic (Secure)'}</span>
+                                    </div>
+                                    <div className="flex items-center justify-between text-[10px] font-bold uppercase tracking-wider">
+                                        <span className="text-slate-500">Appointment ID</span>
+                                        <span className="text-slate-400 font-mono tracking-tighter">{appt.id}</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="flex items-center gap-2 pt-4 border-t border-slate-100 dark:border-slate-800">
+                        {appt.status !== 'cancelled' && (
+                            <>
+                                {!isPast ? (
+                                    <>
+                                        <Button
+                                            onClick={(e) => { e.stopPropagation(); generateICS({ title: `Appointment with ${appt.provider?.token_alias || 'Provider'}`, description: appt.notes?.split('|')[0] || 'Medical Appointment', location: getProviderLocation(appt.provider?.service_type), startTime: appt.start_time, endTime: appt.end_time }); }}
+                                            size="sm"
+                                            variant="outline"
+                                            className="h-8 text-[10px] font-black"
+                                        >
+                                            <Download className="mr-1.5 h-3.5 w-3.5" /> Export .ICS
+                                        </Button>
+                                        <Button
+                                            onClick={(e) => { e.stopPropagation(); onReschedule(appt.id); }}
+                                            size="sm"
+                                            variant="outline"
+                                            className="h-8 text-[10px] font-black"
+                                        >
+                                            <Clock className="mr-1.5 h-3.5 w-3.5" /> Reschedule
+                                        </Button>
+                                        <Button
+                                            onClick={(e) => { e.stopPropagation(); onCancel(appt.id); }}
+                                            size="sm"
+                                            variant="destructive"
+                                            className="h-8 text-[10px] font-black"
+                                        >
+                                            <X className="mr-1.5 h-3.5 w-3.5" /> Terminate Session
+                                        </Button>
+                                    </>
+                                ) : (
+                                    <Button
+                                        onClick={(e) => { e.stopPropagation(); onFeedback(appt.id); }}
+                                        size="sm"
+                                        variant="gradient"
+                                        className="h-8 text-[10px] font-black"
+                                    >
+                                        <Star className="mr-1.5 h-3.5 w-3.5" /> Review Visit
+                                    </Button>
+                                )}
+                            </>
+                        )}
+                        {appt.status === 'cancelled' && (
+                            <p className="text-[10px] font-bold text-slate-400 italic">This record is archived and cannot be modified.</p>
+                        )}
+                    </div>
+                </div>
+            )}
+        </Card>
+    );
+}
 
 export default function MemberDashboard() {
-    const { user, role, signOut } = useAuth();
-    const { theme, setTheme } = useTheme();
+    const { user, signOut } = useAuth();
     const [appointments, setAppointments] = useState<Appointment[]>([]);
     const [loading, setLoading] = useState(true);
     const [bookingOpen, setBookingOpen] = useState(false);
@@ -40,8 +283,14 @@ export default function MemberDashboard() {
 
     // Navigation State
     const [activeTab, setActiveTab] = useState<'ops' | 'resources' | 'security'>('ops');
-    const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
     const [appointView, setAppointView] = useState<'upcoming' | 'history'>('upcoming');
+
+    // Help Request State
+    const [helpModalOpen, setHelpModalOpen] = useState(false);
+
+    // Waitlist State
+    const [waitlistOpen, setWaitlistOpen] = useState(false);
+    const [myWaitlist, setMyWaitlist] = useState<WaitlistEntry[]>([]);
 
     // Toast Notification State (non-blocking)
     const [toast, setToast] = useState<{ type: 'success' | 'error' | 'warning', message: string } | null>(null);
@@ -52,18 +301,18 @@ export default function MemberDashboard() {
 
     const loadData = async () => {
         try {
-            const [myAppointments, providerList] = await Promise.all([
+            const [myAppointments, providerList, waitlistData] = await Promise.all([
                 api.getMyAppointments(),
-                api.getProviders()
+                api.getProviders(),
+                api.getMyWaitlist()
             ]);
             setAppointments(myAppointments);
+            setMyWaitlist(waitlistData);
 
-            // Deduplicate providers by alias + service type
-            // Deduplicate providers by alias + service type
-            const uniqueProviders = Array.from(new Map(providerList.map((item: any) =>
+            const uniqueProviders = Array.from(new Map(providerList.map((item: { token_alias: string, service_type: string, id: string }) =>
                 [item.token_alias + item.service_type, item])).values());
 
-            setProviders(uniqueProviders as any);
+            setProviders(uniqueProviders as { id: string, token_alias: string, service_type: string }[]);
         } catch (error) {
             console.error('Failed to load data', error);
         } finally {
@@ -82,7 +331,7 @@ export default function MemberDashboard() {
         }
     }, [providers, providerId]);
 
-    // Session Timeout Warning & Auto-Logout (SECURITY ENHANCEMENT)
+    // Session Timeout Warning & Auto-Logout
     useEffect(() => {
         let warningTimeout: NodeJS.Timeout;
         let logoutTimeout: NodeJS.Timeout;
@@ -137,32 +386,13 @@ export default function MemberDashboard() {
         setBookingOpen(false);
     };
 
-    const getServiceTypeColor = (type?: string) => {
-        if (!type) return 'bg-indigo-50 border-indigo-200 text-indigo-700 dark:bg-indigo-900/30 dark:border-indigo-800 dark:text-indigo-400';
-
-        const t = type.toUpperCase();
-        if (t.includes('GREEN') || t.includes('MH')) return 'bg-emerald-50 border-emerald-200 text-emerald-700 dark:bg-emerald-900/30 dark:border-emerald-800 dark:text-emerald-400';
-        if (t.includes('BLUE') || t.includes('PT')) return 'bg-blue-50 border-blue-200 text-blue-700 dark:bg-blue-900/30 dark:border-blue-800 dark:text-blue-400';
-        if (t.includes('RED') || t.includes('FH') || t.includes('MED')) return 'bg-red-50 border-red-200 text-red-700 dark:bg-red-900/30 dark:border-red-800 dark:text-red-400';
-        if (t.includes('YELLOW') || t.includes('ADMIN')) return 'bg-amber-50 border-amber-200 text-amber-700 dark:bg-amber-900/30 dark:border-amber-800 dark:text-amber-400';
-
-        return 'bg-slate-50 border-slate-200 text-slate-700 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-400';
-    };
-
-    const formatProviderDisplay = (type: string) => {
-        const t = type.toUpperCase();
-        if (t.includes('MH_GREEN')) return 'Mental Health — Green Team';
-        if (t.includes('MH_BLUE')) return 'Mental Health — Blue Team';
-        if (t.includes('PT') || t.includes('PHYSICAL')) return 'Physical Therapy';
-        if (t.includes('PRIMARY') || t.includes('PCM')) return 'Primary Care';
-        return type; // Fallback
-    };
-
-    const openFeedback = (apptId: string) => {
-        setFeedbackApptId(apptId);
-        setFeedbackOpen(true);
-        setRating(5);
-        setComment('');
+    // Helper to determine location based on team/service
+    const getProviderLocation = (serviceType?: string) => {
+        const t = (serviceType || '').toUpperCase();
+        if (t.includes('GREEN') || t.includes('MH')) return 'Clinical Node B-4 (Bldg 210)'; // Mental Health
+        if (t.includes('BLUE') || t.includes('PT')) return 'Rehab Center - Wing C'; // Physical Therapy
+        if (t.includes('RED') || t.includes('MED') || t.includes('FAMILY')) return 'Primary Care - Bldg 1'; // Family Health
+        return 'Main Clinic Front Desk';
     };
 
     const submitFeedback = async (e: React.FormEvent) => {
@@ -181,15 +411,6 @@ export default function MemberDashboard() {
         } finally {
             setFeedbackLoading(false);
         }
-    };
-
-    // Helper to determine location based on team/service
-    const getProviderLocation = (serviceType?: string) => {
-        const t = (serviceType || '').toUpperCase();
-        if (t.includes('GREEN') || t.includes('MH')) return 'Clinical Node B-4 (Bldg 210)'; // Mental Health
-        if (t.includes('BLUE') || t.includes('PT')) return 'Rehab Center - Wing C'; // Physical Therapy
-        if (t.includes('RED') || t.includes('MED') || t.includes('FAMILY')) return 'Primary Care - Bldg 1'; // Family Health
-        return 'Main Clinic Front Desk';
     };
 
     const handleSlotBooking = async (slotId: string) => {
@@ -221,10 +442,7 @@ export default function MemberDashboard() {
                 showToast('success', 'Appointment Confirmed.');
             }
 
-            // Force data reload immediately to prevent duplicate bookings
             await loadData();
-
-            // Reset state
             setBookingOpen(false);
             setIsRescheduling(false);
             setApptToReschedule(null);
@@ -238,7 +456,6 @@ export default function MemberDashboard() {
             setBookingLoading(false);
         }
     };
-
 
     // Group slots by date with Operational Filter (07:00 - 17:00)
     const groupedSlots = useMemo(() => {
@@ -257,16 +474,13 @@ export default function MemberDashboard() {
         return groups;
     }, [availableSlots]);
 
-    // Calculate the TRUE first available slot (skipping days where member already has an appointment)
+    // Calculate the TRUE first available slot
     const firstAvailableSlot = useMemo(() => {
         const sortedDates = Object.keys(groupedSlots).sort();
         for (const date of sortedDates) {
-            // Check if user already has an appointment on this day
             const hasApptToday = appointments.some(appt =>
                 isSameDay(parseISO(appt.start_time), parseISO(date)) && appt.status !== 'cancelled'
             );
-
-            // If day is free of appointments, return the first slot
             if (!hasApptToday && groupedSlots[date].length > 0) {
                 return groupedSlots[date][0];
             }
@@ -275,9 +489,6 @@ export default function MemberDashboard() {
     }, [groupedSlots, appointments]);
 
     const handleCancel = async (id: string) => {
-        // Removed blocking confirm dialog to debug 'light mode' issue
-        // if (!confirm('Are you sure you want to cancel this appointment?')) return;
-
         // Policy Check: 30 minutes
         const appt = appointments.find(a => a.id === id);
         if (appt) {
@@ -288,20 +499,17 @@ export default function MemberDashboard() {
             }
         }
 
-        // Show immediate feedback
         showToast('warning', 'Processing cancellation...');
         setLoading(true);
 
         try {
-            // Use the correct method (RPC)
             await api.cancelAppointment(id);
             showToast('success', 'Appointment Cancelled Successfully');
-
-            // Refresh Data
             await loadData();
-        } catch (error: any) {
-            console.error('Cancellation error:', error);
-            let msg = error.message || 'Unknown error';
+        } catch (error: unknown) {
+            const err = error as Error;
+            console.error('Cancellation error:', err);
+            let msg = err.message || 'Unknown error';
             if (msg.includes('RLS') || msg.includes('policy')) {
                 msg = 'Permission Error: Access Denied.';
             }
@@ -311,249 +519,98 @@ export default function MemberDashboard() {
         }
     };
 
-
+    const navItems: NavItem[] = [
+        { id: 'ops', label: 'My Care', icon: Activity, onClick: () => setActiveTab('ops'), dataTour: 'nav-overview' },
+        { id: 'resources', label: 'Resources', icon: FileText, onClick: () => setActiveTab('resources') },
+        { id: 'security', label: 'Security', icon: Shield, onClick: () => setActiveTab('security') },
+    ];
 
     if (loading) return (
-        <div className="flex flex-col items-center justify-center p-24 space-y-4">
-            <Loader2 className="animate-spin text-indigo-600 w-8 h-8" />
-            <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Syncing My Care Profile...</span>
+        <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex items-center justify-center p-4">
+            <div className="flex flex-col items-center gap-4 animate-pulse">
+                <Loader2 className="animate-spin text-indigo-600 w-8 h-8" />
+                <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Syncing My Care Profile...</span>
+            </div>
         </div>
     );
 
     return (
-        <div className="min-h-screen bg-slate-50 dark:bg-slate-950 font-sans selection:bg-indigo-100 pb-12 transition-colors">
-            {/* Nav Header Area */}
-            <div className="bg-white dark:bg-slate-900 border-b border-slate-300 dark:border-slate-800 shadow-sm mb-6 transition-colors">
-                <div className="max-w-4xl mx-auto px-4">
-                    <div className="h-14 flex items-center justify-between">
-                        <div className="flex items-center gap-3">
-                            <Activity className="w-8 h-8 text-indigo-600 p-1.5 bg-indigo-50 dark:bg-indigo-900/30 rounded" />
-                            <div>
-                                <h1 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-widest">Project Vector</h1>
-                                <p className="text-[10px] font-bold text-slate-400 uppercase">Secure Health Identity Verified</p>
-                            </div>
-                        </div>
+        <DashboardLayout
+            navItems={navItems}
+            activeTab={activeTab}
+            user={user}
+            role="Member"
+            onSignOut={signOut}
+            title="Project Vector"
+        >
+            <WelcomeModal role="member" userName={user?.user_metadata?.token_alias || user?.email} />
+            <div className="max-w-4xl mx-auto px-4 py-4 md:py-8 space-y-4 md:space-y-8 pb-20">
+                {activeTab === 'ops' && (
+                    <div className="space-y-4 md:space-y-8 animate-in fade-in duration-500">
+                        <header data-tour="dashboard-title">
+                            <h2 className="text-xl md:text-2xl font-black text-slate-900 dark:text-white uppercase tracking-tight">Member Dashboard</h2>
+                            <p className="text-[10px] md:text-xs font-bold text-slate-500 uppercase">Manage your care and appointments securely</p>
+                        </header>
 
-                        <div className="flex items-center gap-4">
-                            <div className="flex flex-col items-end hidden md:flex">
-                                <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Logged in as</span>
-                                <div className="flex items-center gap-1.5">
-                                    <span className="text-xs font-bold text-slate-700 dark:text-slate-200 font-mono">
-                                        {user?.user_metadata?.token_alias || 'Unknown'}
-                                    </span>
-                                    <span className="text-[9px] bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 px-1.5 py-0.5 rounded border border-slate-200 dark:border-slate-700 font-black uppercase tracking-wider">
-                                        {role}
-                                    </span>
-                                </div>
-                            </div>
+                        {/* Hero & Countdown Section - Premium Design */}
+                        {appointments.length > 0 && appointments.some(a => new Date(a.start_time) > new Date() && a.status !== 'cancelled') && (
+                            <Card variant="glass" withGradientBorder className="bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-900 border-none shadow-2xl overflow-hidden group">
+                                <div className="absolute top-0 right-0 w-64 h-64 bg-indigo-500/10 rounded-full blur-3xl -mr-16 -mt-16 pointer-events-none group-hover:bg-indigo-500/20 transition-all duration-1000"></div>
 
-                            {/* Desktop Nav */}
-                            <div className="hidden md:flex items-center gap-3">
-                                <div className="flex bg-slate-100 dark:bg-slate-950 p-1 rounded-lg border border-slate-300 dark:border-slate-800">
-                                    <button
-                                        onClick={() => setActiveTab('ops')}
-                                        className={`px-4 py-1.5 rounded-md text-[9px] font-black uppercase tracking-widest transition-all ${activeTab === 'ops' ? 'bg-white dark:bg-slate-800 text-indigo-600 shadow-sm shadow-slate-200/50 dark:shadow-none' : 'text-slate-400 hover:text-slate-600'}`}
-                                    >
-                                        <Calendar className="w-3.5 h-3.5 inline mr-1.5" /> Appointments
-                                    </button>
-                                    <button
-                                        onClick={() => setActiveTab('resources')}
-                                        className={`px-4 py-1.5 rounded-md text-[9px] font-black uppercase tracking-widest transition-all ${activeTab === 'resources' ? 'bg-white dark:bg-slate-800 text-indigo-600 shadow-sm shadow-slate-200/50 dark:shadow-none' : 'text-slate-400 hover:text-slate-600'}`}
-                                    >
-                                        <Plus className="w-3.5 h-3.5 inline mr-1.5" /> Resources
-                                    </button>
-                                    <button
-                                        onClick={() => setActiveTab('security')}
-                                        className={`px-4 py-1.5 rounded-md text-[9px] font-black uppercase tracking-widest transition-all ${activeTab === 'security' ? 'bg-white dark:bg-slate-800 text-indigo-600 shadow-sm shadow-slate-200/50 dark:shadow-none' : 'text-slate-400 hover:text-slate-600'}`}
-                                    >
-                                        <Shield className="w-3.5 h-3.5 inline mr-1.5" /> Security
-                                    </button>
-                                </div>
+                                <CardContent className="relative z-10 flex flex-col md:flex-row items-center justify-between gap-8 p-6 md:p-8">
+                                    <div className="flex items-center gap-6">
+                                        <div className="p-4 bg-white/10 backdrop-blur-md rounded-2xl border border-white/10 shadow-inner group-hover:scale-110 transition-transform duration-500">
+                                            <Clock className="w-10 h-10 text-indigo-300" />
+                                        </div>
+                                        <div className="space-y-1.5">
+                                            <p className="text-[10px] font-black uppercase tracking-[0.2em] text-indigo-400 mb-1">Upcoming Mission</p>
+                                            {(() => {
+                                                const nextAppt = appointments
+                                                    .filter(a => new Date(a.start_time) > new Date() && a.status !== 'cancelled')
+                                                    .sort((a, b) => new Date(a.start_time).getTime() - new Date(b.start_time).getTime())[0];
 
-                                <div className="flex items-center gap-2">
-                                    <button
-                                        onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
-                                        className="p-2 text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors border border-slate-300 dark:border-slate-700"
-                                    >
-                                        {theme === 'dark' ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
-                                    </button>
-                                    <button
-                                        onClick={signOut}
-                                        className="p-2 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors border border-slate-300 dark:border-slate-700"
-                                        title="Sign Out"
-                                    >
-                                        <LogOut className="w-4 h-4" />
-                                    </button>
-                                </div>
-                            </div>
+                                                return (
+                                                    <>
+                                                        <h2 className="text-3xl font-black tracking-tight text-white leading-tight">
+                                                            {format(parseISO(nextAppt.start_time), 'EEEE, MMMM do')}
+                                                        </h2>
+                                                        <div className="flex items-center gap-2 mt-2">
+                                                            <div className="px-2 py-0.5 rounded bg-indigo-500/20 border border-indigo-500/30 text-[10px] font-black uppercase text-indigo-200">
+                                                                {format(parseISO(nextAppt.start_time), 'HH:mm')}
+                                                            </div>
+                                                            <span className="text-slate-500 text-xs">•</span>
+                                                            <CardDescription className="text-slate-400 font-bold uppercase tracking-tight">
+                                                                {nextAppt.notes?.split('|').find((s: string) => s.trim().startsWith('Location:'))?.replace('Location:', '').trim() || getProviderLocation(nextAppt.provider?.service_type)}
+                                                            </CardDescription>
+                                                        </div>
+                                                    </>
+                                                );
+                                            })()}
+                                        </div>
+                                    </div>
 
-                            {/* Mobile Nav Toggle */}
-                            <div className="flex md:hidden items-center gap-2">
-                                <button
-                                    onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
-                                    className="p-2 text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors border border-slate-300 dark:border-slate-700"
-                                >
-                                    {theme === 'dark' ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
-                                </button>
-                                <button onClick={() => setMobileMenuOpen(!mobileMenuOpen)} className="p-2 text-slate-900 dark:text-white">
-                                    {mobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                {/* Mobile Menu Overlay */}
-                {mobileMenuOpen && (
-                    <div className="border-t border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-xl md:hidden flex flex-col p-4 gap-2 animate-in slide-in-from-top-2">
-                        <Button variant={activeTab === 'ops' ? 'secondary' : 'ghost'} size="sm" onClick={() => { setActiveTab('ops'); setMobileMenuOpen(false); }} className="justify-start h-10 text-xs font-black uppercase tracking-wider"> <Calendar className="w-4 h-4 mr-3" /> Appointments </Button>
-                        <Button variant={activeTab === 'resources' ? 'secondary' : 'ghost'} size="sm" onClick={() => { setActiveTab('resources'); setMobileMenuOpen(false); }} className="justify-start h-10 text-xs font-black uppercase tracking-wider"> <Plus className="w-4 h-4 mr-3" /> Resources </Button>
-                        <Button variant={activeTab === 'security' ? 'secondary' : 'ghost'} size="sm" onClick={() => { setActiveTab('security'); setMobileMenuOpen(false); }} className="justify-start h-10 text-xs font-black uppercase tracking-wider"> <Shield className="w-4 h-4 mr-3" /> Security </Button>
-                        <div className="h-px bg-slate-100 dark:bg-slate-800 my-1" />
-                        <Button variant="ghost" size="sm" onClick={signOut} className="justify-start h-10 text-xs font-black uppercase tracking-wider text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-900/20"> <LogOut className="w-4 h-4 mr-3" /> Sign Out </Button>
-                    </div>
-                )}
-            </div>
-
-            {/* Toast Notification */}
-            {toast && (
-                <div className="fixed top-20 right-4 z-50 animate-in slide-in-from-right-5 duration-300">
-                    <div className={`flex items-center gap-3 px-4 py-3 rounded-lg shadow-lg border ${toast.type === 'success'
-                        ? 'bg-emerald-50 border-emerald-200 text-emerald-700 dark:bg-emerald-900/90 dark:border-emerald-800 dark:text-emerald-300'
-                        : toast.type === 'error'
-                            ? 'bg-red-50 border-red-200 text-red-700 dark:bg-red-900/90 dark:border-red-800 dark:text-red-300'
-                            : 'bg-amber-50 border-amber-200 text-amber-700 dark:bg-amber-900/90 dark:border-amber-800 dark:text-amber-300'
-                        }`}>
-                        <span className="text-[10px] font-black uppercase tracking-widest">{toast.message}</span>
-                        <button onClick={() => setToast(null)} className="ml-2 opacity-50 hover:opacity-100 transition-opacity">
-                            <X className="w-3 h-3" />
-                        </button>
-                    </div>
-                </div>
-            )}
-
-            {/* Hero & Countdown Section */}
-            {!loading && appointments.length > 0 && appointments.some(a => new Date(a.start_time) > new Date() && a.status !== 'cancelled') && (
-                <div className="max-w-4xl mx-auto px-4 mb-8">
-                    <div className="bg-gradient-to-r from-indigo-900 to-slate-900 rounded-xl p-6 text-white shadow-xl border border-indigo-500/20 relative overflow-hidden group">
-                        <div className="absolute top-0 right-0 w-64 h-64 bg-indigo-500/10 rounded-full blur-3xl -mr-16 -mt-16 pointer-events-none group-hover:bg-indigo-500/20 transition-all duration-1000"></div>
-
-                        <div className="relative z-10 flex flex-col md:flex-row items-center justify-between gap-6">
-                            <div className="flex items-center gap-4">
-                                <div className="p-3 bg-white/10 backdrop-blur-md rounded-lg border border-white/10">
-                                    <Clock className="w-8 h-8 text-indigo-300" />
-                                </div>
-                                <div className="space-y-1">
-                                    <p className="text-[10px] font-black uppercase tracking-widest text-indigo-300 mb-1">Next Scheduled Visit</p>
                                     {(() => {
                                         const nextAppt = appointments
                                             .filter(a => new Date(a.start_time) > new Date() && a.status !== 'cancelled')
                                             .sort((a, b) => new Date(a.start_time).getTime() - new Date(b.start_time).getTime())[0];
 
-                                        return (
-                                            <>
-                                                <h2 className="text-2xl font-black tracking-tight text-white mb-0.5">
-                                                    {format(parseISO(nextAppt.start_time), 'EEEE, MMMM do')}
-                                                </h2>
-                                                <p className="text-xs font-bold text-slate-400 uppercase tracking-wide">
-                                                    @ {format(parseISO(nextAppt.start_time), 'HH:mm')} — <span className="text-indigo-200">
-                                                        {nextAppt.notes?.split('|').find((s: string) => s.trim().startsWith('Location:'))?.replace('Location:', '').trim() || getProviderLocation(nextAppt.provider?.service_type)}
-                                                    </span>
-                                                </p>
-                                            </>
-                                        );
+                                        return <AppointmentCountdown startTime={nextAppt.start_time} />;
                                     })()}
-                                </div>
-                            </div>
-
-                            <div className="flex gap-4">
-                                {(() => {
-                                    const nextAppt = appointments
-                                        .filter(a => new Date(a.start_time) > new Date() && a.status !== 'cancelled')
-                                        .sort((a, b) => new Date(a.start_time).getTime() - new Date(b.start_time).getTime())[0];
-
-                                    const diff = new Date(nextAppt.start_time).getTime() - new Date().getTime();
-                                    const days = Math.floor(diff / (1000 * 60 * 60 * 24));
-                                    const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
-
-                                    return (
-                                        <>
-                                            <div className="text-center">
-                                                <div className="text-3xl font-black font-mono tracking-tighter text-white">{days}</div>
-                                                <div className="text-[8px] font-bold uppercase tracking-widest text-indigo-300">Days</div>
-                                            </div>
-                                            <div className="text-center">
-                                                <div className="text-3xl font-black font-mono tracking-tighter text-white">{hours}</div>
-                                                <div className="text-[8px] font-bold uppercase tracking-widest text-indigo-300">Hours</div>
-                                            </div>
-                                        </>
-                                    );
-                                })()}
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            )}
-
-            <div className="max-w-4xl mx-auto px-4 space-y-8">
-                {activeTab === 'security' ? (
-                    <SecuritySettings />
-                ) : activeTab === 'resources' ? (
-                    <div className="bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-800 p-6 shadow-sm">
-                        <h2 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-widest mb-2">Health Resources</h2>
-                        <p className="text-[10px] font-bold text-slate-400 uppercase mb-6">Educational materials from your healthcare providers</p>
-                        <PatientResourcesView />
-                    </div>
-                ) : (
-                    <>
-                        <div className="flex justify-end">
-                            <Button onClick={() => { cancelReschedule(); setBookingOpen(!bookingOpen); }} className="h-8 text-[10px] font-black uppercase tracking-widest bg-indigo-600 shadow-md">
-                                <Plus className="mr-2 h-3.5 w-3.5" /> Schedule a Visit
-                            </Button>
-                        </div>
-
-                        {/* Feedback Modal */}
-                        {feedbackOpen && (
-                            <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4">
-                                <div className="w-full max-w-sm bg-white dark:bg-slate-900 p-6 rounded-lg shadow-2xl border border-slate-200 dark:border-slate-800 space-y-4 animate-in zoom-in-95">
-                                    <div className="border-b border-slate-100 dark:border-slate-800 pb-3 text-center">
-                                        <h3 className="text-xs font-black uppercase tracking-widest text-slate-900 dark:text-white">Visit Feedback</h3>
-                                        <p className="text-[10px] font-bold text-slate-400 uppercase mt-1">Secure confidential report</p>
-                                    </div>
-
-                                    <form onSubmit={submitFeedback} className="space-y-6">
-                                        <div className="space-y-2">
-                                            <label className="text-[9px] font-black uppercase tracking-widest text-slate-500 text-center block">Effectiveness Index</label>
-                                            <div className="flex justify-center gap-2">
-                                                {[1, 2, 3, 4, 5].map((r) => (
-                                                    <button
-                                                        key={r}
-                                                        type="button"
-                                                        onClick={() => setRating(r)}
-                                                        className={`w-10 h-10 rounded border text-xs font-black transition-all
-                                                            ${rating === r ? 'bg-indigo-600 text-white border-indigo-600 shadow-inner' : 'bg-slate-50 dark:bg-slate-800 text-slate-400 hover:bg-slate-100'}`}
-                                                    >
-                                                        {r}
-                                                    </button>
-                                                ))}
-                                            </div>
-                                        </div>
-                                        <div className="space-y-1.5">
-                                            <label className="text-[9px] font-black uppercase tracking-widest text-slate-500">Subjective Observations</label>
-                                            <textarea
-                                                className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded p-3 text-xs font-bold text-slate-700 dark:text-slate-300 min-h-[100px] outline-none focus:ring-2 focus:ring-indigo-500/10"
-                                                value={comment}
-                                                onChange={(e) => setComment(e.target.value)}
-                                                placeholder="Add brief technical details or observations..."
-                                            />
-                                        </div>
-                                        <div className="flex justify-end gap-2">
-                                            <Button type="button" variant="ghost" onClick={() => setFeedbackOpen(false)} className="text-[10px] font-black uppercase tracking-widest">Cancel</Button>
-                                            <Button type="submit" isLoading={feedbackLoading} className="bg-indigo-600 text-[10px] font-black uppercase tracking-widest h-9 px-6 shadow-sm">Submit Feedback</Button>
-                                        </div>
-                                    </form>
-                                </div>
-                            </div>
+                                </CardContent>
+                            </Card>
                         )}
+
+                        <QuickActionsPanel
+                            onBook={() => {
+                                setBookingOpen(true);
+                            }}
+                            onViewSchedule={() => {
+                                const el = document.getElementById('schedule-section');
+                                if (el) el.scrollIntoView({ behavior: 'smooth' });
+                                setAppointView('upcoming');
+                            }}
+                            onRequestHelp={() => setHelpModalOpen(true)}
+                        />
 
                         {/* Booking Console */}
                         {bookingOpen && (
@@ -639,6 +696,24 @@ export default function MemberDashboard() {
                                                 <div className="text-[10px] font-black uppercase text-slate-400">
                                                     No currently available slots for this provider.
                                                 </div>
+                                                {/* Waitlist Call to Action */}
+                                                {myWaitlist.some(w => w.provider_id === providerId && w.status === 'active') ? (
+                                                    <div className="p-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-100 dark:border-amber-900/30 rounded-lg inline-flex items-center gap-2">
+                                                        <Clock className="w-4 h-4 text-amber-600" />
+                                                        <span className="text-[10px] font-black text-amber-700 dark:text-amber-400 uppercase tracking-wide">
+                                                            You are on the waitlist
+                                                        </span>
+                                                    </div>
+                                                ) : (
+                                                    <Button
+                                                        onClick={() => setWaitlistOpen(true)}
+                                                        variant="outline"
+                                                        className="text-amber-600 border-amber-200 hover:bg-amber-50 dark:border-amber-900 dark:hover:bg-amber-900/20"
+                                                    >
+                                                        <Clock className="w-4 h-4 mr-2" />
+                                                        Join Waitlist
+                                                    </Button>
+                                                )}
                                             </div>
                                         ) : (
                                             Object.entries(groupedSlots).map(([date, slots]) => {
@@ -665,7 +740,7 @@ export default function MemberDashboard() {
                                                                 <button
                                                                     key={slot.id}
                                                                     onClick={() => handleSlotBooking(slot.id)}
-                                                                    disabled={bookingLoading || isBlocked} // DISABLED IF Blocked
+                                                                    disabled={bookingLoading || isBlocked}
                                                                     className={`flex flex-col items-center justify-center p-3 border-2 border-dashed rounded transition-all group active:scale-95
                                                                         ${isBlocked
                                                                             ? 'opacity-40 bg-slate-100 dark:bg-slate-900 border-slate-200 dark:border-slate-800 cursor-not-allowed'
@@ -678,8 +753,9 @@ export default function MemberDashboard() {
                                                                     {isBlocked ? (
                                                                         <span className="text-[9px] font-bold text-slate-300 uppercase tracking-tighter mt-1">LOCKED</span>
                                                                     ) : (
-                                                                        <span className="text-[9px] font-bold text-slate-400 uppercase tracking-tighter mt-1">
-                                                                            AVAILABLE
+                                                                        <span className="text-[9px] font-bold text-slate-400 uppercase tracking-tighter mt-1 flex items-center justify-center gap-1">
+                                                                            {slot.is_video && <Video className="w-3 h-3 text-indigo-500" />}
+                                                                            {slot.is_video ? 'VIDEO' : 'CLINIC'}
                                                                         </span>
                                                                     )}
                                                                 </button>
@@ -695,135 +771,148 @@ export default function MemberDashboard() {
                         )}
 
                         {/* Schedule Timeline */}
-                        <div className="space-y-4">
-                            <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-2">
-                                <div className="flex items-center gap-4">
+                        <Card variant="default" id="schedule-section" data-tour="nav-appointments" className="shadow-sm">
+                            <CardHeader className="flex flex-row items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-4">
+                                <div className="flex items-center gap-6">
                                     <button
                                         onClick={() => setAppointView('upcoming')}
-                                        className={`text-xs font-black uppercase tracking-widest transition-colors ${appointView === 'upcoming' ? 'text-indigo-600 dark:text-indigo-400 border-b-2 border-indigo-600 dark:border-indigo-400 pb-2 -mb-2.5' : 'text-slate-400 hover:text-slate-600'}`}
+                                        className={`text-xs font-black uppercase tracking-widest transition-all ${appointView === 'upcoming' ? 'text-indigo-600 dark:text-indigo-400 border-b-2 border-indigo-600 dark:border-indigo-400 pb-2 -mb-[17px]' : 'text-slate-400 hover:text-slate-600'}`}
                                     >
                                         My Schedule
                                     </button>
                                     <button
                                         onClick={() => setAppointView('history')}
-                                        className={`text-xs font-black uppercase tracking-widest transition-colors ${appointView === 'history' ? 'text-indigo-600 dark:text-indigo-400 border-b-2 border-indigo-600 dark:border-indigo-400 pb-2 -mb-2.5' : 'text-slate-400 hover:text-slate-600'}`}
+                                        className={`text-xs font-black uppercase tracking-widest transition-all ${appointView === 'history' ? 'text-indigo-600 dark:text-indigo-400 border-b-2 border-indigo-600 dark:border-indigo-400 pb-2 -mb-[17px]' : 'text-slate-400 hover:text-slate-600'}`}
                                     >
                                         History / Past
                                     </button>
                                 </div>
-                                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest hidden sm:inline-block">
-                                    {appointView === 'upcoming' ? 'Active Visits' : 'Archived Records'}
-                                </span>
-                            </div>
+                                <Badge variant="outline" className="text-[10px] hidden sm:inline-flex">
+                                    {appointView === 'upcoming' ? 'Active' : 'Archived'}
+                                </Badge>
+                            </CardHeader>
+                            <CardContent className="pt-6">
+                                <div className="grid gap-3">
+                                    {(() => {
+                                        const filtered = appointView === 'upcoming'
+                                            ? appointments.filter(a => a.status !== 'cancelled' && new Date(a.start_time) >= new Date()).sort((a, b) => new Date(a.start_time).getTime() - new Date(b.start_time).getTime())
+                                            : appointments.filter(a => a.status === 'cancelled' || new Date(a.start_time) < new Date()).sort((a, b) => new Date(b.start_time).getTime() - new Date(a.start_time).getTime());
 
-                            <div className="grid gap-3">
-                                {(() => {
-                                    const filtered = appointView === 'upcoming'
-                                        ? appointments.filter(a => a.status !== 'cancelled' && new Date(a.start_time) >= new Date()).sort((a, b) => new Date(a.start_time).getTime() - new Date(b.start_time).getTime())
-                                        : appointments.filter(a => a.status === 'cancelled' || new Date(a.start_time) < new Date()).sort((a, b) => new Date(b.start_time).getTime() - new Date(a.start_time).getTime());
-
-                                    if (filtered.length === 0) return (
-                                        <div className="text-center py-20 bg-white dark:bg-slate-900 border border-dashed border-slate-300 dark:border-slate-800 rounded-lg shadow-sm">
-                                            <Clock className="w-12 h-12 text-slate-100 dark:text-slate-800 mx-auto mb-4" />
-                                            <p className="text-[10px] font-black uppercase text-slate-300 tracking-widest">
-                                                {appointView === 'upcoming' ? 'No Upcoming Appointments' : 'No History Records Found'}
-                                            </p>
-                                        </div>
-                                    );
-
-                                    return filtered.map((apt) => {
-                                        const cancelReason = apt.notes?.split('|').find((s: string) => s.trim().startsWith('CANCEL_REASON:'))?.replace('CANCEL_REASON:', '').trim();
-
-                                        return (
-                                            <div key={apt.id} className={`flex flex-col sm:flex-row sm:items-center justify-between p-5 bg-white dark:bg-slate-900 border rounded-lg shadow-sm transition-all hover:shadow-md group ${apt.status === 'cancelled' ? 'border-red-100 dark:border-red-900/30 opacity-75' : 'border-slate-200 dark:border-slate-800 hover:border-indigo-100 dark:hover:border-indigo-900'}`}>
-                                                <div className="flex items-center gap-5">
-                                                    <div className={`hidden sm:flex flex-col items-center justify-center w-14 h-14 border rounded-md shrink-0 ${apt.status === 'cancelled' ? 'bg-red-50 dark:bg-red-950/30 border-red-100 dark:border-red-900/30 text-red-300' : 'bg-slate-50 dark:bg-slate-950 border-slate-100 dark:border-slate-800 text-slate-900 dark:text-slate-300'}`}>
-                                                        <span className="text-[9px] font-black uppercase opacity-50">{format(parseISO(apt.start_time), 'MMM').toUpperCase()}</span>
-                                                        <span className="text-lg font-black tracking-tighter">{format(parseISO(apt.start_time), 'dd')}</span>
-                                                    </div>
-                                                    <div className="space-y-1">
-                                                        <div className="flex items-center gap-3">
-                                                            <h4 className={`text-sm font-black tracking-tight uppercase ${apt.status === 'cancelled' ? 'text-slate-400 line-through' : 'text-slate-900 dark:text-white'}`}>
-                                                                {format(parseISO(apt.start_time), 'MMM d')} • {format(parseISO(apt.start_time), 'HH:mm')}
-                                                            </h4>
-                                                            {apt.status === 'cancelled' ? (
-                                                                <span className="bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 text-[8px] font-black uppercase px-2 py-1 rounded border border-red-200 dark:border-red-800">
-                                                                    CANCELLED
-                                                                </span>
-                                                            ) : (
-                                                                <div className={`px-2 py-0.5 rounded text-[8px] font-black uppercase tracking-widest border ${getServiceTypeColor(apt.provider?.service_type)}`}>
-                                                                    {formatProviderDisplay(apt.provider?.service_type || 'MEDICAL SERVICE')}
-                                                                </div>
-                                                            )}
-                                                        </div>
-                                                        <div className="space-y-0.5">
-                                                            <div className="flex items-center gap-4 text-[10px] font-bold text-slate-500 uppercase tracking-tight">
-                                                                <span className="flex items-center gap-1"><MapPin className="w-3 h-3 opacity-50" /> Clinical Node B-4</span>
-                                                                <span className="flex items-center gap-1"><Loader2 className="w-3 h-3 opacity-50" /> ID: {apt.id.slice(0, 8)}</span>
-                                                            </div>
-                                                            {cancelReason && (
-                                                                <div className="text-[10px] font-bold text-red-500 uppercase tracking-wide flex items-center gap-1 mt-1">
-                                                                    <span>Reason:</span> {cancelReason}
-                                                                </div>
-                                                            )}
-                                                        </div>
-                                                    </div>
-                                                </div>
-
-                                                <div className="mt-4 sm:mt-0 flex items-center justify-end gap-2 relative z-50">
-                                                    {/* Rebook option for Cancelled/Past */}
-                                                    {(apt.status === 'cancelled' || new Date(apt.start_time) < new Date()) && (
-                                                        <button
-                                                            onClick={() => { setProviderId(apt.provider_id); setBookingOpen(true); }}
-                                                            className="px-4 py-1.5 bg-indigo-50 dark:bg-indigo-900/30 border border-indigo-100 dark:border-indigo-800 rounded text-[9px] font-black uppercase tracking-widest text-indigo-700 dark:text-indigo-400 hover:bg-indigo-100 dark:hover:bg-indigo-900/50 transition-all"
-                                                        >
-                                                            Book Again
-                                                        </button>
-                                                    )}
-
-                                                    {/* Add to Calendar Button (Active Only) */}
-                                                    {(apt.status === 'pending' || apt.status === 'confirmed') && new Date(apt.start_time) >= new Date() && (
-                                                        <button
-                                                            onClick={() => generateICS({
-                                                                title: `Medical Appointment - ${formatProviderDisplay(apt.provider?.service_type || 'Visit')}`,
-                                                                description: apt.notes || 'Scheduled medical appointment',
-                                                                location: 'Clinical Node B-4',
-                                                                startTime: apt.start_time,
-                                                                endTime: apt.end_time
-                                                            })}
-                                                            className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 dark:bg-emerald-900/30 border border-emerald-200 dark:border-emerald-800 rounded text-[9px] font-black uppercase tracking-widest text-emerald-700 dark:text-emerald-400 hover:bg-emerald-100 dark:hover:bg-emerald-900/50 transition-all"
-                                                            title="Download .ics file"
-                                                        >
-                                                            <CalendarPlus className="w-3 h-3" /> Calendar
-                                                        </button>
-                                                    )}
-
-                                                    {(apt.status === 'pending' || apt.status === 'confirmed') && new Date(apt.start_time) >= new Date() && (
-                                                        <>
-                                                            <button onClick={() => startReschedule(apt.id)} className="px-4 py-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded text-[9px] font-black uppercase tracking-widest text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700 transition-all">
-                                                                Reschedule
-                                                            </button>
-                                                            <button onClick={() => handleCancel(apt.id)} className="flex items-center gap-1.5 px-4 py-1.5 bg-red-50 dark:bg-red-900/20 border border-red-100 dark:border-red-800 rounded text-[9px] font-black uppercase tracking-widest text-red-700 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/40 transition-all">
-                                                                <X className="w-3 h-3" /> Cancel
-                                                            </button>
-                                                        </>
-                                                    )}
-
-                                                    {apt.status === 'confirmed' && new Date(apt.start_time) < new Date() && (
-                                                        <button onClick={() => openFeedback(apt.id)} className="flex items-center gap-1.5 px-4 py-1.5 bg-indigo-50 dark:bg-indigo-900/30 border border-indigo-100 dark:border-indigo-800 rounded text-[9px] font-black uppercase tracking-widest text-indigo-700 dark:text-indigo-400 hover:bg-indigo-100 dark:hover:bg-indigo-900/50 transition-all">
-                                                            <Star className="w-3 h-3" /> Feedback
-                                                        </button>
-                                                    )}
-                                                </div>
+                                        if (filtered.length === 0) return (
+                                            <div className="text-center py-20 bg-slate-50/10 dark:bg-slate-900/10 border border-dashed border-slate-300 dark:border-slate-800 rounded-lg">
+                                                <Clock className="w-12 h-12 text-slate-100 dark:text-slate-800 mx-auto mb-4" />
+                                                <p className="text-[10px] font-black uppercase text-slate-300 tracking-widest">
+                                                    {appointView === 'upcoming' ? 'No Upcoming Appointments' : 'No History Records Found'}
+                                                </p>
                                             </div>
-                                        )
-                                    })
-                                })()}
-                            </div>
-                        </div>
-                    </>
+                                        );
+
+                                        return filtered.map((apt) => (
+                                            <AppointmentRow
+                                                key={apt.id}
+                                                appt={apt}
+                                                onReschedule={startReschedule}
+                                                onCancel={handleCancel}
+                                                onFeedback={(id) => {
+                                                    setFeedbackOpen(true);
+                                                    setFeedbackApptId(id);
+                                                }}
+                                                getProviderLocation={getProviderLocation}
+                                            />
+                                        ));
+                                    })()}
+                                </div>
+                            </CardContent>
+                        </Card>
+                    </div>
+                )}
+
+                {activeTab === 'resources' && (
+                    <Card variant="default" className="shadow-sm animate-in fade-in duration-500">
+                        <CardHeader>
+                            <CardTitle className="uppercase tracking-widest">Health Resources</CardTitle>
+                            <CardDescription className="uppercase text-[10px] font-bold">Educational materials from your healthcare providers</CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                            <Suspense fallback={<FeatureLoading />}>
+                                <PatientResourcesView />
+                            </Suspense>
+                        </CardContent>
+                    </Card>
+                )}
+
+                {activeTab === 'security' && (
+                    <Suspense fallback={<FeatureLoading />}>
+                        <SecuritySettings />
+                    </Suspense>
                 )}
             </div>
-        </div>
+
+            {/* Modals */}
+            {toast && (
+                <div className="fixed top-20 right-4 z-50 animate-in slide-in-from-right-5 duration-300">
+                    <div className={`flex items-center gap-3 px-4 py-3 rounded-lg shadow-lg border ${toast.type === 'success'
+                        ? 'bg-emerald-50 border-emerald-200 text-emerald-700 dark:bg-emerald-900/90 dark:border-emerald-800 dark:text-emerald-300'
+                        : toast.type === 'error'
+                            ? 'bg-red-50 border-red-200 text-red-700 dark:bg-red-900/90 dark:border-red-800 dark:text-red-300'
+                            : 'bg-amber-50 border-amber-200 text-amber-700 dark:bg-amber-900/90 dark:border-amber-800 dark:text-amber-300'
+                        }`}>
+                        <span className="text-[10px] font-black uppercase tracking-widest">{toast.message}</span>
+                        <button onClick={() => setToast(null)} className="ml-2 opacity-50 hover:opacity-100 transition-opacity">
+                            <X className="w-3 h-3" />
+                        </button>
+                    </div>
+                </div>
+            )}
+
+            {feedbackOpen && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4 animate-in fade-in">
+                    <div className="w-full max-w-sm bg-white dark:bg-slate-900 p-6 rounded-lg shadow-2xl border border-slate-200 dark:border-slate-800 space-y-4">
+                        <div className="border-b border-slate-100 dark:border-slate-800 pb-3 text-center">
+                            <h3 className="text-xs font-black uppercase tracking-widest text-slate-900 dark:text-white">Visit Feedback</h3>
+                            <p className="text-[10px] font-bold text-slate-400 uppercase mt-1">Secure confidential report</p>
+                        </div>
+
+                        <form onSubmit={submitFeedback} className="space-y-6">
+                            <div className="space-y-2">
+                                <label className="text-[9px] font-black uppercase tracking-widest text-slate-500 text-center block">Effectiveness Index</label>
+                                <div className="flex justify-center gap-2">
+                                    {[1, 2, 3, 4, 5].map((r) => (
+                                        <button
+                                            key={r}
+                                            type="button"
+                                            onClick={() => setRating(r)}
+                                            className={`w-10 h-10 rounded border text-xs font-black transition-all
+                                                ${rating === r ? 'bg-indigo-600 text-white border-indigo-600 shadow-inner' : 'bg-slate-50 dark:bg-slate-800 text-slate-400 hover:bg-slate-100'}`}
+                                        >
+                                            {r}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+                            <div className="space-y-1.5">
+                                <label className="text-[9px] font-black uppercase tracking-widest text-slate-500">Subjective Observations</label>
+                                <textarea
+                                    className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded p-3 text-xs font-bold text-slate-700 dark:text-slate-300 min-h-[100px] outline-none focus:ring-2 focus:ring-indigo-500/10"
+                                    value={comment}
+                                    onChange={(e) => setComment(e.target.value)}
+                                    placeholder="Add brief technical details or observations..."
+                                />
+                            </div>
+                            <div className="flex justify-end gap-2">
+                                <Button type="button" variant="ghost" onClick={() => setFeedbackOpen(false)} className="text-[10px] font-black uppercase tracking-widest">Cancel</Button>
+                                <Button type="submit" isLoading={feedbackLoading} className="bg-indigo-600 text-[10px] font-black uppercase tracking-widest h-9 px-6 shadow-sm">Submit Feedback</Button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
+
+            <Suspense fallback={null}>
+                <HelpRequestModal isOpen={helpModalOpen} onClose={() => setHelpModalOpen(false)} />
+                <WaitlistModal isOpen={waitlistOpen} onClose={() => setWaitlistOpen(false)} providerId={providerId} serviceType={providers.find(p => p.id === providerId)?.service_type || ''} />
+            </Suspense>
+
+        </DashboardLayout>
     );
 }
